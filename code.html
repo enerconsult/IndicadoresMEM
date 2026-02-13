@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard Integral Indicadores MEM - Enerconsult</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                font-family: 'Inter', sans-serif;
+                @apply bg-[#F8FAFC] text-slate-800;
+            }
+        }
+        :root {
+            --ener-blue-dark: #003366;
+            --ener-blue: #137fec;
+            --ener-orange: #F37021;
+            --ener-gray-bg: #F8FAFC;
+        }
+        .sidebar-active {
+            @apply bg-white/10 border-r-4 border-[var(--ener-orange)] text-white;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .stat-card {
+            @apply bg-white rounded-lg border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow;
+        }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<aside class="w-64 bg-[var(--ener-blue-dark)] text-slate-300 flex flex-col sticky top-0 h-screen z-50">
+<div class="p-6 flex items-center gap-3 border-b border-white/10">
+<div class="bg-white p-1 rounded">
+<span class="material-symbols-outlined text-[var(--ener-blue-dark)] font-bold">bolt</span>
+</div>
+<span class="font-extrabold tracking-tighter text-white text-xl">ENERCONSULT</span>
+</div>
+<nav class="flex-1 py-6 px-3 space-y-1">
+<p class="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Principales</p>
+<a class="sidebar-active flex items-center gap-3 px-3 py-2.5 rounded-md transition-all" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="text-sm font-semibold">Precios</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">trending_up</span>
+<span class="text-sm font-medium">Demanda</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">factory</span>
+<span class="text-sm font-medium">Generación</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">waves</span>
+<span class="text-sm font-medium">Embalses</span>
+</a>
+<div class="pt-8 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Reportes</div>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-sm font-medium">Informes XM</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">table_chart</span>
+<span class="text-sm font-medium">Datos Históricos</span>
+</a>
+</nav>
+<div class="p-4 border-t border-white/10">
+<div class="bg-white/5 rounded-lg p-3 flex items-center gap-3">
+<img alt="User" class="w-8 h-8 rounded-full border border-white/20" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPMH8nW9GLqLi4ODzYFXNv-ehvwtojRQn5P-JVuycZd4IjHy_1lqGvxE7yEIgHff-3sBYt4Rd83QaNAXklePGrI337sPje2IQvEn3NswEL1hUb0HHNKrQFJ15UNJkuS4ilrOble4LYlPvvh7husbmH1M3uB_WtEZd88a0qcctuz3h4w_LxMnCfEL0ZMd7Upme--RdR_M9dsKkUxzjpXPujo3ERykfxIf2iqYNln0wiLA4uL8Xul5BP3Px5AjgSIGp89iRIpXEs6Q1S"/>
+<div class="overflow-hidden">
+<p class="text-xs font-bold text-white truncate">Analista Senior</p>
+<p class="text-[10px] text-slate-400 truncate">Sessión: MEM-2024</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col min-w-0">
+<header class="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-40">
+<div class="flex items-center gap-4">
+<h1 class="text-lg font-bold text-[var(--ener-blue-dark)]">Indicadores MEM - Colombia</h1>
+<span class="px-2 py-0.5 bg-orange-100 text-[var(--ener-orange)] text-[10px] font-bold rounded uppercase">En Vivo</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 text-sm text-slate-500">
+<span class="material-symbols-outlined text-sm">calendar_today</span>
+<span class="font-medium">15 Mayo, 2024</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 text-slate-400 hover:text-[var(--ener-blue)] transition-colors">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-[var(--ener-blue)] transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-[var(--ener-orange)] rounded-full border-2 border-white"></span>
+</button>
+<div class="h-6 w-px bg-slate-200"></div>
+<button class="bg-[var(--ener-blue)] hover:bg-[var(--ener-blue-dark)] text-white px-4 py-1.5 rounded-md text-sm font-bold transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">download</span>
+                        Exportar Reporte
+                    </button>
+</div>
+</div>
+</header>
+<div class="px-8 py-4 bg-white border-b border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+<div class="flex gap-2">
+<button class="px-4 py-1.5 bg-slate-100 rounded text-xs font-bold border border-slate-200">Hoy</button>
+<button class="px-4 py-1.5 bg-white rounded text-xs font-medium border border-slate-200 hover:bg-slate-50">7 Días</button>
+<button class="px-4 py-1.5 bg-white rounded text-xs font-medium border border-slate-200 hover:bg-slate-50">Mensual</button>
+<button class="px-4 py-1.5 bg-white rounded text-xs font-medium border border-slate-200 hover:bg-slate-50">Personalizado</button>
+</div>
+<div class="flex gap-3">
+<select class="text-xs border-slate-200 rounded-md py-1.5 focus:ring-[var(--ener-blue)]">
+<option>Todos los Agentes</option>
+<option>EPM</option>
+<option>ISAGEN</option>
+<option>ENEL</option>
+</select>
+<select class="text-xs border-slate-200 rounded-md py-1.5 focus:ring-[var(--ener-blue)]">
+<option>COP/kWh</option>
+<option>USD/MWh</option>
+</select>
+</div>
+</div>
+<div class="p-8 space-y-8 overflow-y-auto">
+<div>
+<div class="flex items-center gap-2 mb-4">
+<div class="w-1 h-6 bg-[var(--ener-orange)] rounded-full"></div>
+<h2 class="text-xl font-bold text-[var(--ener-blue-dark)]">Indicadores de Precios</h2>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="stat-card">
+<p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Precio Bolsa Nacional</p>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-2xl font-extrabold text-[var(--ener-blue-dark)]">$542.18</span>
+<span class="text-[10px] font-bold text-emerald-600">+12.4%</span>
+</div>
+<div class="mt-4 flex items-end gap-1 h-8">
+<div class="flex-1 bg-slate-100 h-4 rounded-t"></div>
+<div class="flex-1 bg-slate-100 h-6 rounded-t"></div>
+<div class="flex-1 bg-[var(--ener-blue)] h-8 rounded-t"></div>
+</div>
+</div>
+<div class="stat-card">
+<p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Oferta de Despacho</p>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-2xl font-extrabold text-[var(--ener-blue-dark)]">$485.60</span>
+<span class="text-[10px] font-bold text-rose-500">-3.2%</span>
+</div>
+<div class="mt-4 flex items-end gap-1 h-8">
+<div class="flex-1 bg-slate-100 h-8 rounded-t"></div>
+<div class="flex-1 bg-slate-100 h-7 rounded-t"></div>
+<div class="flex-1 bg-[var(--ener-blue)] h-5 rounded-t"></div>
+</div>
+</div>
+<div class="stat-card">
+<p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Escasez (Activación)</p>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-2xl font-extrabold text-[var(--ener-blue-dark)]">$890.45</span>
+<span class="text-[10px] font-bold text-slate-400">Stable</span>
+</div>
+<div class="mt-4 flex items-end gap-1 h-8">
+<div class="flex-1 bg-slate-100 h-3 rounded-t"></div>
+<div class="flex-1 bg-slate-100 h-3 rounded-t"></div>
+<div class="flex-1 bg-slate-300 h-3 rounded-t"></div>
+</div>
+</div>
+<div class="stat-card">
+<p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Promedio No Regulado</p>
+<div class="flex items-baseline gap-2 mt-1">
+<span class="text-2xl font-extrabold text-[var(--ener-blue-dark)]">$285.40</span>
+<span class="text-[10px] font-bold text-emerald-600">+1.5%</span>
+</div>
+<div class="mt-4 flex items-end gap-1 h-8">
+<div class="flex-1 bg-slate-100 h-4 rounded-t"></div>
+<div class="flex-1 bg-slate-100 h-5 rounded-t"></div>
+<div class="flex-1 bg-[var(--ener-blue)] h-6 rounded-t"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2 space-y-4">
+<div class="flex items-center gap-2">
+<div class="w-1 h-6 bg-[var(--ener-orange)] rounded-full"></div>
+<h2 class="text-xl font-bold text-[var(--ener-blue-dark)]">Demanda de Energía</h2>
+</div>
+<div class="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-bold text-slate-600">Evolución Demanda Real vs Comercial</h3>
+<div class="flex gap-4 text-xs font-bold uppercase tracking-tighter">
+<div class="flex items-center gap-2"><span class="w-3 h-3 bg-[var(--ener-blue)] rounded-full"></span> Real</div>
+<div class="flex items-center gap-2"><span class="w-3 h-3 bg-slate-300 rounded-full"></span> Comercial</div>
+</div>
+</div>
+<div class="h-64 flex items-end justify-between relative border-b border-slate-100">
+<svg class="absolute inset-0 w-full h-full opacity-20" preserveAspectRatio="none">
+<path d="M0 150 Q 150 50, 300 120 T 600 80 T 900 100 L 900 200 L 0 200 Z" fill="var(--ener-blue)"></path>
+</svg>
+<svg class="absolute inset-0 w-full h-full" preserveAspectRatio="none">
+<path d="M0 150 Q 150 50, 300 120 T 600 80 T 900 100" fill="none" stroke="var(--ener-blue)" stroke-width="3"></path>
+</svg>
+<div class="absolute left-0 top-0 h-full flex flex-col justify-between text-[10px] font-bold text-slate-400 -translate-x-6">
+<span>220 GWh</span>
+<span>180 GWh</span>
+<span>140 GWh</span>
+<span>100 GWh</span>
+</div>
+</div>
+<div class="flex justify-between mt-4 text-[10px] font-bold text-slate-400 uppercase">
+<span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>24:00</span>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="h-6 invisible md:visible"></div>
+<div class="bg-white p-6 rounded-lg border border-slate-200 shadow-sm flex flex-col h-full">
+<h3 class="font-bold text-slate-600 mb-6 text-sm uppercase">Demanda por OR (Top 5)</h3>
+<div class="space-y-5 flex-1">
+<div>
+<div class="flex justify-between text-xs font-bold mb-1.5">
+<span>EPM</span>
+<span class="text-[var(--ener-blue)]">24.5%</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full">
+<div class="bg-[var(--ener-blue)] h-full rounded-full" style="width: 24.5%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-1.5">
+<span>Codensa</span>
+<span class="text-[var(--ener-blue)]">22.1%</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full">
+<div class="bg-[var(--ener-blue)] h-full rounded-full" style="width: 22.1%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-1.5">
+<span>Air-e</span>
+<span class="text-[var(--ener-blue)]">11.8%</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full">
+<div class="bg-[var(--ener-blue)] h-full rounded-full" style="width: 11.8%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-1.5">
+<span>Afinia</span>
+<span class="text-[var(--ener-blue)]">9.4%</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full">
+<div class="bg-[var(--ener-blue)] h-full rounded-full" style="width: 9.4%"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-xs font-bold mb-1.5">
+<span>Celsia</span>
+<span class="text-[var(--ener-blue)]">7.2%</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full">
+<div class="bg-[var(--ener-blue)] h-full rounded-full" style="width: 7.2%"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex items-center gap-2">
+<div class="w-1 h-6 bg-[var(--ener-orange)] rounded-full"></div>
+<h2 class="text-xl font-bold text-[var(--ener-blue-dark)]">Generación de Seguridad y Sistema</h2>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+<div class="lg:col-span-1 space-y-4">
+<div class="stat-card">
+<p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Generación Real Total</p>
+<p class="text-2xl font-extrabold text-[var(--ener-blue-dark)]">218.4 GWh/día</p>
+</div>
+<div class="stat-card">
+<p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Generación Ideal</p>
+<p class="text-2xl font-extrabold text-slate-400">224.1 GWh/día</p>
+</div>
+<div class="stat-card border-orange-200 bg-orange-50">
+<p class="text-[10px] font-bold text-[var(--ener-orange)] uppercase tracking-widest">Generación de Seguridad</p>
+<p class="text-2xl font-extrabold text-[var(--ener-orange)]">14.2 GWh/día</p>
+<p class="text-[10px] mt-1 text-slate-500 italic">Fuera de mérito por restricciones</p>
+</div>
+</div>
+<div class="lg:col-span-3 bg-white border border-slate-200 rounded-lg p-6 shadow-sm overflow-hidden">
+<h3 class="font-bold text-slate-600 mb-6 text-sm uppercase">Recurso de Generación por Tipo</h3>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div class="p-4 bg-blue-50 rounded-lg border border-blue-100">
+<span class="material-symbols-outlined text-blue-600 mb-2">water_drop</span>
+<p class="text-[10px] font-bold text-blue-600 uppercase">Hidráulica</p>
+<p class="text-xl font-extrabold text-[var(--ener-blue-dark)]">68.5%</p>
+</div>
+<div class="p-4 bg-orange-50 rounded-lg border border-orange-100">
+<span class="material-symbols-outlined text-[var(--ener-orange)] mb-2">local_fire_department</span>
+<p class="text-[10px] font-bold text-[var(--ener-orange)] uppercase">Térmica</p>
+<p class="text-xl font-extrabold text-[var(--ener-blue-dark)]">24.2%</p>
+</div>
+<div class="p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+<span class="material-symbols-outlined text-yellow-600 mb-2">light_mode</span>
+<p class="text-[10px] font-bold text-yellow-600 uppercase">Solar</p>
+<p class="text-xl font-extrabold text-[var(--ener-blue-dark)]">6.1%</p>
+</div>
+<div class="p-4 bg-emerald-50 rounded-lg border border-emerald-100">
+<span class="material-symbols-outlined text-emerald-600 mb-2">air</span>
+<p class="text-[10px] font-bold text-emerald-600 uppercase">Eólica</p>
+<p class="text-xl font-extrabold text-[var(--ener-blue-dark)]">1.2%</p>
+</div>
+</div>
+<div class="mt-8">
+<h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Top 5 Plantas Generadoras (Hoy)</h4>
+<div class="overflow-x-auto">
+<table class="w-full text-left text-xs">
+<thead>
+<tr class="text-slate-400 border-b border-slate-100">
+<th class="pb-2">Planta</th>
+<th class="pb-2">Agente</th>
+<th class="pb-2 text-right">GWh</th>
+<th class="pb-2 text-right">% Capacidad</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-50">
+<tr>
+<td class="py-2.5 font-bold">Ituango</td>
+<td class="py-2.5">EPM</td>
+<td class="py-2.5 text-right font-bold">18.4</td>
+<td class="py-2.5 text-right">
+<div class="flex items-center justify-end gap-2">
+<span>82%</span>
+<div class="w-12 h-1.5 bg-slate-100 rounded-full"><div class="bg-emerald-500 h-full rounded-full" style="width: 82%"></div></div>
+</div>
+</td>
+</tr>
+<tr>
+<td class="py-2.5 font-bold">San Carlos</td>
+<td class="py-2.5">ISAGEN</td>
+<td class="py-2.5 text-right font-bold">14.2</td>
+<td class="py-2.5 text-right">
+<div class="flex items-center justify-end gap-2">
+<span>74%</span>
+<div class="w-12 h-1.5 bg-slate-100 rounded-full"><div class="bg-emerald-500 h-full rounded-full" style="width: 74%"></div></div>
+</div>
+</td>
+</tr>
+<tr>
+<td class="py-2.5 font-bold">Termocentro</td>
+<td class="py-2.5">ISAGEN</td>
+<td class="py-2.5 text-right font-bold">12.1</td>
+<td class="py-2.5 text-right">
+<div class="flex items-center justify-end gap-2">
+<span>95%</span>
+<div class="w-12 h-1.5 bg-slate-100 rounded-full"><div class="bg-emerald-500 h-full rounded-full" style="width: 95%"></div></div>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="flex items-center gap-2">
+<div class="w-1 h-6 bg-[var(--ener-orange)] rounded-full"></div>
+<h2 class="text-xl font-bold text-[var(--ener-blue-dark)]">Embalses y Reservas Hídricas</h2>
+</div>
+<div class="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+<div class="p-6 border-b border-slate-100 flex items-center justify-between">
+<div class="flex gap-8">
+<div>
+<p class="text-[10px] font-bold text-slate-500 uppercase">Volumen Útil Agregado</p>
+<p class="text-xl font-extrabold text-[var(--ener-blue-dark)]">54.2%</p>
+</div>
+<div>
+<p class="text-[10px] font-bold text-slate-500 uppercase">Aportes Hídricos</p>
+<p class="text-xl font-extrabold text-emerald-600">88.4% (Media)</p>
+</div>
+</div>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-slate-100 rounded text-[10px] font-bold">Última actualización: 1h atrás</span>
+</div>
+</div>
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left text-sm whitespace-nowrap">
+<thead class="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+<tr>
+<th class="px-6 py-3">Embalse</th>
+<th class="px-6 py-3">Región</th>
+<th class="px-6 py-3">Volumen Útil (%)</th>
+<th class="px-6 py-3">Capacidad Útil (GWh)</th>
+<th class="px-6 py-3">Vertimientos (m3/s)</th>
+<th class="px-6 py-3">Descargas (m3/s)</th>
+<th class="px-6 py-3">Tendencia</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100">
+<tr>
+<td class="px-6 py-4 font-bold text-[var(--ener-blue-dark)] text-xs">Peñol-Guatapé</td>
+<td class="px-6 py-4 text-xs">Antioquia</td>
+<td class="px-6 py-4 text-xs">
+<div class="flex items-center gap-2">
+<span class="w-12 font-bold">42.1%</span>
+<div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-amber-400 h-full" style="width: 42.1%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-medium">3,450.2</td>
+<td class="px-6 py-4 text-xs">0.00</td>
+<td class="px-6 py-4 text-xs">112.4</td>
+<td class="px-6 py-4">
+<span class="material-symbols-outlined text-rose-500 text-sm">trending_down</span>
+</td>
+</tr>
+<tr>
+<td class="px-6 py-4 font-bold text-[var(--ener-blue-dark)] text-xs">Palo de Bogo</td>
+<td class="px-6 py-4 text-xs">Centro</td>
+<td class="px-6 py-4 text-xs">
+<div class="flex items-center gap-2">
+<span class="w-12 font-bold">78.5%</span>
+<div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-emerald-500 h-full" style="width: 78.5%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-medium">1,120.5</td>
+<td class="px-6 py-4 text-xs">12.50</td>
+<td class="px-6 py-4 text-xs">45.8</td>
+<td class="px-6 py-4">
+<span class="material-symbols-outlined text-emerald-500 text-sm">trending_up</span>
+</td>
+</tr>
+<tr>
+<td class="px-6 py-4 font-bold text-[var(--ener-blue-dark)] text-xs">Amaní</td>
+<td class="px-6 py-4 text-xs">Caldas</td>
+<td class="px-6 py-4 text-xs">
+<div class="flex items-center gap-2">
+<span class="w-12 font-bold">55.2%</span>
+<div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-blue-500 h-full" style="width: 55.2%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-medium">840.1</td>
+<td class="px-6 py-4 text-xs">0.00</td>
+<td class="px-6 py-4 text-xs">28.4</td>
+<td class="px-6 py-4">
+<span class="material-symbols-outlined text-slate-400 text-sm">trending_flat</span>
+</td>
+</tr>
+<tr>
+<td class="px-6 py-4 font-bold text-[var(--ener-blue-dark)] text-xs">Betania</td>
+<td class="px-6 py-4 text-xs">Huila</td>
+<td class="px-6 py-4 text-xs">
+<div class="flex items-center gap-2">
+<span class="w-12 font-bold">32.8%</span>
+<div class="w-20 h-2 bg-slate-100 rounded-full overflow-hidden">
+<div class="bg-rose-500 h-full" style="width: 32.8%"></div>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 text-xs font-medium">1,402.0</td>
+<td class="px-6 py-4 text-xs">0.00</td>
+<td class="px-6 py-4 text-xs">156.2</td>
+<td class="px-6 py-4">
+<span class="material-symbols-outlined text-rose-500 text-sm">trending_down</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<footer class="mt-auto bg-white border-t border-slate-200 p-8 flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="bg-[var(--ener-blue-dark)] p-1 rounded">
+<span class="material-symbols-outlined text-white text-xs">bolt</span>
+</div>
+<span class="text-xs font-bold text-[var(--ener-blue-dark)]">Enerconsult S.A.S.</span>
+</div>
+<div class="text-[10px] text-slate-400 flex gap-4">
+<a class="hover:text-[var(--ener-orange)]" href="#">Política de Privacidad</a>
+<a class="hover:text-[var(--ener-orange)]" href="#">Soporte Técnico</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Powered by Ener-Analytic Engine</span>
+<span class="text-[10px] px-2 py-0.5 bg-slate-100 rounded text-slate-500 font-mono">v4.2.0-stable</span>
+</div>
+</footer>
+</main>
+
+</body></html>
