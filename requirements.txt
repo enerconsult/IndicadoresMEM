@@ -4,4 +4,4 @@ plotly
 pydataxm
 requests
 openpyxl
-lxml
+beautifulsoup4
