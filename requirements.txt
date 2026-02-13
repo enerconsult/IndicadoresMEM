@@ -2,3 +2,6 @@ streamlit
 pandas<2.2.0
 plotly
 pydataxm
+requests
+openpyxl
+lxml
