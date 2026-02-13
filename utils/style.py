@@ -98,17 +98,17 @@ def load_css():
         {'div[data-testid="stExpander"] { border: 1px solid ' + theme['BORDER_COLOR'] + '; border-radius: 8px; }' if st.session_state.theme == 'dark' else ''}
         
         /* Hide Footer Only */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
+        #MainMenu {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
         
         /* Radio Button Styling - Pills/Tabs Look */
-        div[data-testid="stRadio"] > div {
+        div[data-testid="stRadio"] > div {{
             display: flex;
             flex-direction: row;
             gap: 8px;
-        }
+        }}
         
-        div[data-testid="stRadio"] label {
+        div[data-testid="stRadio"] label {{
             background-color: rgba(255, 255, 255, 0.05);
             padding: 4px 12px;
             border-radius: 4px;
@@ -118,12 +118,12 @@ def load_css():
             text-align: center;
             margin-right: 0 !important;
             color: {theme['TEXT_COLOR']} !important;
-        }
+        }}
 
-        div[data-testid="stRadio"] label:hover {
+        div[data-testid="stRadio"] label:hover {{
             background-color: rgba(255, 255, 255, 0.1);
             border-color: {theme['COLOR_BLUE']};
-        }
+        }}
         
         /* Highlight the active radio button (This relies on Streamlit's internal structure which may vary, 
            but usually the active one has a specific child or state. 
@@ -134,9 +134,9 @@ def load_css():
         */
         
         /* Hide the default radio circle */
-        div[data-testid="stRadio"] label div[role="radio"] {
+        div[data-testid="stRadio"] label div[role="radio"] {{
             display: none;
-        }
+        }}
         
     </style>
     """, unsafe_allow_html=True)
