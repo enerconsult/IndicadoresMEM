@@ -28,7 +28,7 @@ theme = get_theme_config()
 # --- SIDEBAR ---
 with st.sidebar:
     render_sidebar()
-    st.toggle("Modo Dark Premium 🌙", value=(st.session_state.theme == 'dark'), key="toggle_dark_mode", on_change=toggle_theme)
+    st.checkbox("Modo Dark Premium 🌙", value=(st.session_state.theme == 'dark'), key="toggle_dark_mode", on_change=toggle_theme)
     
     st.markdown("<br>", unsafe_allow_html=True)
     
