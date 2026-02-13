@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indicadores MEM - Enerconsult</title>
+    <!-- Metadatos básicos para SEO y buena apariencia -->
+    <meta name="description"
+        content="Dashboard de Indicadores del Mercado de Energía Mayorista (MEM) de Colombia. Datos en tiempo real de XM.">
+    <meta name="theme-color" content="#0f172a">
+    <style>
+        /* Reset básico para asegurar que ocupe toda la pantalla */
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            /* Evita barras de scroll dobles */
+            background-color: #0f172a;
+            /* Color de fondo mientras carga */
+        }
+
+        /* Iframe a pantalla completa */
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 
+      IMPORTANTE:
+      Reemplaza la URL en 'src' con la URL real que te dio Streamlit.
+      Ejemplo: src="https://enerconsult-indicadores.streamlit.app/?embed=true"
+      
+      El parámetro ?embed=true ayuda a ocultar algunas barras nativas de Streamlit si es compatible.
+    -->
+    <iframe src="https://indicadoresmem-enerconsult.streamlit.app/?embed=true" allowfullscreen></iframe>
+</body>
+
+</html>
