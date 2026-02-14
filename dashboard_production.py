@@ -109,11 +109,82 @@ st.markdown(f"""
     }}
     
     /* Additional Dark Mode Tweaks */
+    /* Additional Dark Mode Tweaks */
     {'div[data-testid="stExpander"] { border: 1px solid ' + BORDER_COLOR + '; border-radius: 8px; }' if st.session_state.theme == 'dark' else ''}
     
     /* Hide Footer Only */
     #MainMenu {{visibility: hidden;}}
     footer {{visibility: hidden;}}
+
+    /* --- KPI CARD STYLES (Responsive) --- */
+    .kpi-card {{
+        background-color: {CARD_BG};
+        border: 1px solid {BORDER_COLOR};
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        backdrop-filter: blur(10px);
+    }}
+    
+    .kpi-title {{
+        color: {TEXT_SUB};
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 0.5rem;
+    }}
+    
+    .kpi-value {{
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: {TEXT_COLOR};
+    }}
+    
+    .kpi-delta {{
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }}
+    
+    .kpi-sub {{
+        font-size: 0.7rem;
+        color: {TEXT_SUB};
+        font-style: italic;
+        margin-top: 0.5rem;
+    }}
+
+    /* --- MOBILE MEDIA QUERIES --- */
+    @media (max-width: 768px) {{
+        /* Adjust global padding */
+        .block-container {{
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }}
+        
+        /* KPI Cards on Mobile */
+        .kpi-card {{
+            padding: 0.75rem; /* Reduce padding */
+            margin-bottom: 0.5rem;
+        }}
+        
+        .kpi-value {{
+            font-size: 1.4rem; /* Smaller font for value */
+        }}
+        
+        .kpi-title {{
+            font-size: 0.6rem;
+        }}
+        
+        /* Stack columns if not already handled by Streamlit (Streamlit handles it, but we can tweak) */
+    }}
     
 </style>
 """, unsafe_allow_html=True)
@@ -129,12 +200,6 @@ def kpi_card_html(title, value, delta, sub_text="", color_bar=COLOR_BLUE, progre
     delta_color = "#10b981" if delta >= 0 else "#f43f5e" # Emerald vs Rose
     delta_sign = "+" if delta >= 0 else ""
     delta_str = f"{delta_sign}{delta:.1f}%"
-    
-    # Dynamic Styles
-    card_style = f"background-color: {CARD_BG}; border: 1px solid {BORDER_COLOR}; border-radius: 0.75rem; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); height: 100%; display: flex; flex-direction: column; justify-content: space-between; backdrop-filter: blur(10px);"
-    title_style = f"color: {TEXT_SUB}; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;"
-    value_style = f"font-size: 1.8rem; font-weight: 800; color: {TEXT_COLOR};"
-    sub_style = f"font-size: 0.7rem; color: {TEXT_SUB}; font-style: italic; margin-top: 0.5rem;"
     
     # Progress Logic (3 Bars)
     # < 0.33: 1 bar (Low intensity)
@@ -153,19 +218,15 @@ def kpi_card_html(title, value, delta, sub_text="", color_bar=COLOR_BLUE, progre
     # Bar 3
     c3 = color_bar if progress > 0.66 else bg_inactive
     
-    # Opacity for "filling" effect or just solid? Let's keep the solid look but vary the active bars.
-    # Actually, the user liked the look of different opacities. Let's make active bars FULL color, inactive bars formatted.
-    
-    
     html = f"""
-    <div style="{card_style}">
+    <div class="kpi-card">
         <div>
-            <p style="{title_style}">{title}</p>
+            <p class="kpi-title">{title}</p>
             <div style="display: flex; align-items: baseline; gap: 0.75rem;">
-                <span style="{value_style}">{value}</span>
-                <span style="font-size: 0.75rem; font-weight: 700; color: {delta_color}; background-color: {delta_color}20; padding: 2px 6px; border-radius: 4px;">{delta_str}</span>
+                <span class="kpi-value">{value}</span>
+                <span class="kpi-delta" style="color: {delta_color}; background-color: {delta_color}20;">{delta_str}</span>
             </div>
-            {f'<p style="{sub_style}">{sub_text}</p>' if sub_text else ''}
+            {f'<p class="kpi-sub">{sub_text}</p>' if sub_text else ''}
         </div>
         <div style="display: flex; align-items: flex-end; gap: 4px; height: 6px; margin-top: 1.5rem;">
             <div style="flex: 1; background-color: {c1}; height: 40%; border-radius: 2px;"></div>
