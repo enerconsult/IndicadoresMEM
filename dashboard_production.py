@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pydataxm.pydataxm import ReadDB
 import datetime as dt
+import concurrent.futures
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -252,6 +253,22 @@ def kpi_card_html(title, value, delta, sub_text="", color_bar=COLOR_BLUE, progre
     return html
 
 # --- API & DATA FUNCTIONS ---
+
+# --- Custom ReadDB to allow thread-safe usage without re-fetching inventory ---
+class FastReadDB(ReadDB):
+    def __new__(cls, *args, **kwargs):
+        return super(ReadDB, cls).__new__(cls)
+
+    def __init__(self, shared_inventory=None, url_template=None):
+        # Initialize without calling all_variables() if inventory is provided
+        self.url = url_template if url_template else "https://servapibi.xm.com.co/{period_base}"
+        self.connection = None
+        self.request = ''
+        if shared_inventory is not None:
+            self.inventario_metricas = shared_inventory
+        else:
+            self.inventario_metricas = self.all_variables()
+
 @st.cache_resource
 def get_api():
     return ReadDB()
@@ -273,6 +290,54 @@ def fetch_metric_data(metric_id, entity, start_date, end_date):
     except Exception as e:
         st.error(f"Error fetching {metric_id}: {e}")
         return None
+
+def fetch_single_metric_fast(shared_inventory, url_template, metric_id, entity, start_date, end_date):
+    """
+    Worker function for parallel execution. Creates a fresh FastReadDB instance.
+    Does NOT use Streamlit cache decorators because it runs in a thread/process
+    where Streamlit context might not be fully available or safe.
+    """
+    try:
+        # Create fresh instance per thread with shared inventory
+        local_api = FastReadDB(shared_inventory, url_template)
+        df = local_api.request_data(metric_id, entity, start_date, end_date)
+
+        if df is not None and not df.empty:
+             if 'Date' in df.columns:
+                 df['Date'] = pd.to_datetime(df['Date'])
+             if 'Entity' not in df.columns:
+                df['Entity'] = entity
+        return df
+    except Exception as e:
+        # Return exception to handle it in main thread or just log
+        # print(f"Error in thread for {metric_id}: {e}")
+        return None
+
+@st.cache_data(ttl=3600)
+def fetch_all_metrics_parallel(metrics_list, start_date, end_date, _inventory_df, url_template):
+    """
+    Fetches multiple metrics in parallel.
+    metrics_list: list of tuples (metric_id, entity)
+    _inventory_df: The metadata dataframe (use _ prefix to prevent hashing if large?
+                   Actually dataframe hashing is fine in recent Streamlit).
+    """
+    results = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        # Map futures to metric_id
+        future_to_metric = {
+            executor.submit(fetch_single_metric_fast, _inventory_df, url_template, m_id, entity, start_date, end_date): m_id
+            for m_id, entity in metrics_list
+        }
+
+        for future in concurrent.futures.as_completed(future_to_metric):
+            metric_id = future_to_metric[future]
+            try:
+                data = future.result()
+                results[metric_id] = data
+            except Exception as exc:
+                # Store None or handle error
+                results[metric_id] = None
+    return results
 
 @st.cache_data(ttl=86400) 
 def get_catalog():
@@ -559,8 +624,38 @@ if selection == "Resumen":
     
     # Data Fetching
     with st.spinner("Actualizando indicadores..."):
+        # Parallel Fetch Optimization
+        metrics_to_fetch = [
+            ("PrecBolsNaci", "Sistema"),
+            ("PrecEsca", "Sistema"),
+            ("PrecEscaSup", "Sistema"),
+            ("PrecEscaInf", "Sistema"),
+            ("DemaCome", "Sistema"),
+            ("MaxPrecOferNal", "Sistema"),
+            ("Gene", "Sistema"),
+            ("CapaUtilDiarEner", "Sistema"),
+            ("VoluUtilDiarEner", "Sistema"),
+            ("AporEner", "Sistema"),
+            ("AporEnerMediHist", "Sistema")
+        ]
+
+        # Use parallel fetcher
+        parallel_results = fetch_all_metrics_parallel(metrics_to_fetch, start_date, end_date, api.inventario_metricas, api.url)
+
+        # Unpack results (if None, individual logic handles it or we should ensure None is handled)
+        df_bolsa = parallel_results.get("PrecBolsNaci")
+        df_escasez = parallel_results.get("PrecEsca")
+        df_escasez_sup = parallel_results.get("PrecEscaSup")
+        df_escasez_inf = parallel_results.get("PrecEscaInf")
+        df_demanda = parallel_results.get("DemaCome")
+        df_oferta = parallel_results.get("MaxPrecOferNal")
+        df_gen = parallel_results.get("Gene")
+        df_cap = parallel_results.get("CapaUtilDiarEner")
+        df_vol = parallel_results.get("VoluUtilDiarEner")
+        df_apor = parallel_results.get("AporEner")
+        df_media = parallel_results.get("AporEnerMediHist")
+
         # 1. Spot Price (Last Day - Average)
-        df_bolsa = fetch_metric_data("PrecBolsNaci", "Sistema", start_date, end_date)
         val_bolsa = 0
         delta_bolsa = 0
         date_bolsa = ""
@@ -596,10 +691,6 @@ if selection == "Resumen":
                 prog_bolsa = min(1.0, val_bolsa / max_30)
 
         # 2. Scarcity Price (Last Month) - Base
-        # We need sup/inf for charts later, so fetch them here to avoid NameError
-        df_escasez = fetch_metric_data("PrecEsca", "Sistema", start_date, end_date)
-        df_escasez_sup = fetch_metric_data("PrecEscaSup", "Sistema", start_date, end_date)
-        df_escasez_inf = fetch_metric_data("PrecEscaInf", "Sistema", start_date, end_date)
         
         # FIX: Directly access last valid non-zero value to avoid 0.0 or 0.xxxx issue
         if df_escasez is not None and not df_escasez.empty:
@@ -627,7 +718,6 @@ if selection == "Resumen":
              except: pass
         
         # 3. System Demand (Robust Check)
-        df_demanda = fetch_metric_data("DemaCome", "Sistema", start_date, end_date)
         val_demanda = 0
         delta_demanda = 0
         date_demanda = ""
@@ -692,7 +782,6 @@ if selection == "Resumen":
                 prog_demanda = min(1.0, val_demanda / max_dem_30)
 
         # 4. Max Offer (MaxPrecOferNal - Average of Day as Main)
-        df_oferta = fetch_metric_data("MaxPrecOferNal", "Sistema", start_date, end_date)
         max_oferta, min_oferta, avg_oferta = 0, 0, 0
         date_oferta = ""
         
@@ -768,7 +857,7 @@ if selection == "Resumen":
     with col_d:
         period_dem = render_chart_controls("period_dem")
         
-    df_gen = fetch_metric_data("Gene", "Sistema", start_date, end_date)
+    # df_gen = fetch_metric_data("Gene", "Sistema", start_date, end_date) # ALREADY FETCHED
     
     # Aggregation: Sum for GWh
     df_dem_chart = calculate_periodicity(df_demanda, period_dem, 'sum')
@@ -847,8 +936,8 @@ if selection == "Resumen":
         period_cap = render_chart_controls("period_cap", options=["1M", "1Y"])
     
     # Note: Check IDs. 'CapaUtilDiarEner' vs 'VoluUtilDiarEner'
-    df_cap = fetch_metric_data("CapaUtilDiarEner", "Sistema", start_date, end_date) # Check ID validity?
-    df_vol = fetch_metric_data("VoluUtilDiarEner", "Sistema", start_date, end_date) # Check ID validity?
+    # df_cap = fetch_metric_data("CapaUtilDiarEner", "Sistema", start_date, end_date) # Check ID validity?
+    # df_vol = fetch_metric_data("VoluUtilDiarEner", "Sistema", start_date, end_date) # Check ID validity?
 
     # Aggregation: Mean is correct for capacity/volume (User Correction)
     df_cap_chart = calculate_periodicity(df_cap, period_cap, 'mean')
@@ -888,8 +977,8 @@ if selection == "Resumen":
         period_apor = render_chart_controls("period_apor", options=["1M", "1Y"])
         
     # Valid IDs: 'AporEner' (GWh). 'MediaHist' (Historical Mean).
-    df_apor = fetch_metric_data("AporEner", "Sistema", start_date, end_date)
-    df_media = fetch_metric_data("AporEnerMediHist", "Sistema", start_date, end_date)
+    # df_apor = fetch_metric_data("AporEner", "Sistema", start_date, end_date)
+    # df_media = fetch_metric_data("AporEnerMediHist", "Sistema", start_date, end_date)
     
     df_apor_chart = calculate_periodicity(df_apor, period_apor, 'sum')
     df_media_chart = calculate_periodicity(df_media, period_apor, 'sum')
