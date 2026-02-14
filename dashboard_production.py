@@ -179,11 +179,25 @@ st.markdown(f"""
             font-size: 1.4rem; /* Smaller font for value */
         }}
         
-        .kpi-title {{
-            font-size: 0.6rem;
+        /* Stack columns if not already handled by Streamlit (Streamlit handles it, but we can tweak) */
+    }}
+
+    /* --- MOBILE LANDSCAPE SPECIFIC --- */
+    @media only screen and (orientation: landscape) and (max-width: 900px) {{
+        .block-container {{
+            padding-top: 0rem !important;
+            padding-bottom: 0rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
         }}
         
-        /* Stack columns if not already handled by Streamlit (Streamlit handles it, but we can tweak) */
+        /* Force smaller font in landscape to fit more */
+        .kpi-value {{
+            font-size: 1.2rem;
+        }}
+        
+        /* Hide sidebar in landscape mobile to give space to charts? 
+           Streamlit handles this via UI, but we can ensure content flows well */
     }}
     
 </style>
@@ -462,7 +476,8 @@ def style_fig(fig, y_axis_title=None):
         title_text="", # FORCE EMPTY TITLE
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=20, r=20, t=40, b=20),
+        # Reduced margins for mobile
+        margin=dict(l=10, r=10, t=30, b=10),
         hovermode="x unified", # Enable unified hover tooltip
         legend=dict(
             orientation="h",
@@ -470,7 +485,7 @@ def style_fig(fig, y_axis_title=None):
             y=1.02,
             xanchor="right",
             x=1,
-            font=dict(size=10, color=TEXT_SUB)
+            font=dict(size=9, color=TEXT_SUB)
         )
     )
     fig.update_xaxes(showgrid=False, linecolor=BORDER_COLOR, tickfont=dict(color=TEXT_SUB))
