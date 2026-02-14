@@ -347,17 +347,7 @@ def render_chart_controls(key_prefix, options=["1D", "1M", "1Y"]):
 
 # Sidebar
 with st.sidebar:
-    st.markdown(f"""
-    <div style="padding: 1rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem;">
-        <div style="background-color: white; padding: 4px; border-radius: 4px;">
-            <span style="color: {COLOR_BLUE_DARK}; font-weight: bold; font-size: 1.2rem;">⚡</span>
-        </div>
-        <div>
-            <div style="font-weight: 800; font-size: 1.1rem; letter-spacing: -0.05em; color: white;">ENERCONSULT</div>
-            <div style="font-size: 0.6rem; color: #94a3b8; letter-spacing: 0.1em; text-transform: uppercase;">Dashboards Pro</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Header removed as per user request (Logo is at the top)
     
     # Toggle moved to here
     st.toggle("Modo Dark Premium 🌙", value=(st.session_state.theme == 'dark'), key="toggle_dark_mode", on_change=toggle_theme)
