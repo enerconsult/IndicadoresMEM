@@ -46,6 +46,10 @@ def fetch_metric_data(metric_id, entity, start_date, end_date):
         # Concatenate all chunks
         df_final = pd.concat(all_dfs, ignore_index=True)
         
+        # FIX: Ensure Entity column exists (Streamlit Cloud issue)
+        if 'Entity' not in df_final.columns:
+            df_final['Entity'] = entity
+
         # Deduplicate just in case (overlapping boundaries?)
         if 'Date' in df_final.columns:
             df_final['Date'] = pd.to_datetime(df_final['Date'])
@@ -55,7 +59,7 @@ def fetch_metric_data(metric_id, entity, start_date, end_date):
         return df_final
 
     except Exception as e:
-        # st.error(f"Error fetching {metric_id}: {e}")
+        st.error(f"Error fetching {metric_id}: {e}")
         return None
 
 @st.cache_data(ttl=86400) 
