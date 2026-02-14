@@ -1,7 +1,5 @@
 streamlit
-pandas<2.2.0
+pandas
 plotly
 pydataxm
 requests
-openpyxl
-beautifulsoup4
