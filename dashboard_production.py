@@ -368,22 +368,13 @@ with st.sidebar:
     st.markdown("### PRINCIPALES", unsafe_allow_html=True)
     menu_options = [
         "Resumen", # Renamed for cleaner menu
-        "Precios",
-        "Demanda",
-        "Generación",
-        "Embalses",
         "Explorador"
     ]
     selection = st.radio("Navegación", menu_options, label_visibility="collapsed")
     
     st.markdown("---")
     
-    # Reports section (Visual only)
-    st.markdown("### REPORTES", unsafe_allow_html=True)
-    st.markdown(f"""
-    <div style="color: #cbd5e1; padding: 5px 0; font-size: 0.9rem; cursor: pointer;">📄 Informes XM</div>
-    <div style="color: #cbd5e1; padding: 5px 0; font-size: 0.9rem; cursor: pointer;">📊 Datos Históricos</div>
-    """, unsafe_allow_html=True)
+    # Reports section removed as per user request
     
     # Footer User
     st.markdown(f"""
