@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pydataxm.pydataxm import ReadDB
 import datetime as dt
-import concurrent.futures
+import asyncio
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -291,53 +291,54 @@ def fetch_metric_data(metric_id, entity, start_date, end_date):
         st.error(f"Error fetching {metric_id}: {e}")
         return None
 
-def fetch_single_metric_fast(shared_inventory, url_template, metric_id, entity, start_date, end_date):
+async def fetch_single_metric_async(shared_inventory, url_template, metric_id, entity, start_date, end_date):
     """
-    Worker function for parallel execution. Creates a fresh FastReadDB instance.
-    Does NOT use Streamlit cache decorators because it runs in a thread/process
-    where Streamlit context might not be fully available or safe.
+    Worker function for async execution.
+    Since pydataxm is synchronous, we run it in the executor to avoid blocking the event loop.
     """
+    loop = asyncio.get_running_loop()
     try:
-        # Create fresh instance per thread with shared inventory
-        local_api = FastReadDB(shared_inventory, url_template)
-        df = local_api.request_data(metric_id, entity, start_date, end_date)
+        # Create fresh instance per task with shared inventory
+        # Running in executor handles the blocking IO of requests
+        def _fetch():
+            local_api = FastReadDB(shared_inventory, url_template)
+            return local_api.request_data(metric_id, entity, start_date, end_date)
+
+        df = await loop.run_in_executor(None, _fetch)
 
         if df is not None and not df.empty:
              if 'Date' in df.columns:
                  df['Date'] = pd.to_datetime(df['Date'])
              if 'Entity' not in df.columns:
                 df['Entity'] = entity
-        return df
+        return metric_id, df
     except Exception as e:
         # Return exception to handle it in main thread or just log
-        # print(f"Error in thread for {metric_id}: {e}")
-        return None
+        return metric_id, None
+
+async def run_async_tasks(metrics_list, start_date, end_date, _inventory_df, url_template):
+    tasks = []
+    for m_id, entity in metrics_list:
+        tasks.append(fetch_single_metric_async(_inventory_df, url_template, m_id, entity, start_date, end_date))
+    results = await asyncio.gather(*tasks)
+    return dict(results)
 
 @st.cache_data(ttl=3600)
 def fetch_all_metrics_parallel(metrics_list, start_date, end_date, _inventory_df, url_template):
     """
-    Fetches multiple metrics in parallel.
-    metrics_list: list of tuples (metric_id, entity)
-    _inventory_df: The metadata dataframe (use _ prefix to prevent hashing if large?
-                   Actually dataframe hashing is fine in recent Streamlit).
+    Fetches multiple metrics concurrently using asyncio and ThreadPoolExecutor (implicitly).
+    This mimics parallelism but is often safer for Streamlit Cloud than manual Thread spawning.
     """
-    results = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        # Map futures to metric_id
-        future_to_metric = {
-            executor.submit(fetch_single_metric_fast, _inventory_df, url_template, m_id, entity, start_date, end_date): m_id
-            for m_id, entity in metrics_list
-        }
-
-        for future in concurrent.futures.as_completed(future_to_metric):
-            metric_id = future_to_metric[future]
-            try:
-                data = future.result()
-                results[metric_id] = data
-            except Exception as exc:
-                # Store None or handle error
-                results[metric_id] = None
-    return results
+    # Create a new event loop for this thread if one doesn't exist
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        results = loop.run_until_complete(run_async_tasks(metrics_list, start_date, end_date, _inventory_df, url_template))
+        loop.close()
+        return results
+    except Exception as e:
+        st.error(f"Async fetch failed: {e}")
+        return {}
 
 @st.cache_data(ttl=86400) 
 def get_catalog():
