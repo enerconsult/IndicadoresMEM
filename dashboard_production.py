@@ -1014,21 +1014,31 @@ if selection == "Resumen":
 
 elif selection == "Precios":
     st.title("💰 Precios Detallados")
-    metrics = {
-        "Precio Bolsa Nacional": "PrecBolsNaci",
-        "Oferta de Despacho": "PrecOferDesp",
-        "Escasez": "PrecEscasez", 
-        "Contratos Regulados": "PrecPromContRegu",
-        "Contratos No Regulados": "PrecPromContNoRegu"
+
+    # Map Display Name -> (MetricID, Preferred Entity)
+    metrics_map = {
+        "Precio Bolsa Nacional": ("PrecBolsNaci", "Sistema"),
+        "Oferta de Despacho": ("PrecOferDesp", "Recurso"), # Usually Recurso
+        "Escasez": ("PrecEscasez", "Sistema"),
+        "Contratos Regulados": ("PrecPromContRegu", "Sistema"),
+        "Contratos No Regulados": ("PrecPromContNoRegu", "Sistema")
     }
     
     st.markdown("### Tendencia de Precios")
     
-    for name, mid in metrics.items():
+    # Prepare list for parallel fetch
+    metrics_to_fetch = list(metrics_map.values())
+
+    # Fetch all at once
+    with st.spinner("Cargando precios..."):
+        results = fetch_all_metrics_parallel(metrics_to_fetch, start_date, end_date, api.inventario_metricas, api.url)
+
+    for name, (mid, entity) in metrics_map.items():
         st.subheader(name)
-        df = fetch_metric_data(mid, "Sistema", start_date, end_date)
-        if (df is None or df.empty) and mid == "PrecOferDesp": 
-            df = fetch_metric_data(mid, "Recurso", start_date, end_date)
+        df = results.get(mid)
+
+        # Fallback logic for PrecOferDesp if fetched with Recurso but needed Sistema or vice versa?
+        # For now, rely on the map.
         
         if df is not None and not df.empty:
             if 'Recurso' in df.columns or 'Values_code' in df.columns:
