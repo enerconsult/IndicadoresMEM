@@ -26,13 +26,21 @@ def fetch_metric_data(metric_id, entity, start_date, end_date):
     
     try:
         while curr_start <= end_date:
-            # Define chunk end (max 365 days from curr_start)
-            # XM limit is often 365 days inclusive
-            chunk_end = min(end_date, curr_start + dt.timedelta(days=364))
+            # Define chunk end (max 30 days to avoid timeouts)
+            chunk_end = min(end_date, curr_start + dt.timedelta(days=30))
             
-            # Fetch chunk
-            # print(f"Fetching {metric_id} from {curr_start} to {chunk_end}")
-            df_chunk = api.request_data(metric_id, entity, curr_start, chunk_end)
+            # Fetch chunk with simple retry logic
+            df_chunk = None
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    df_chunk = api.request_data(metric_id, entity, curr_start, chunk_end)
+                    break # Success
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        print(f"Failed to fetch {metric_id} after {max_retries} attempts: {e}")
+                    import time
+                    time.sleep(1) # Wait 1s before retry
             
             if df_chunk is not None and not df_chunk.empty:
                 all_dfs.append(df_chunk)
