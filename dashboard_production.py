@@ -815,37 +815,41 @@ if selection == "Resumen":
 
 elif selection == "Informe del CEO":
     # ------------------------------------------------------------------
-    # ChatGPT-style chat — clean, full-width, theme-aware
+    # Modern AI-chat — transparent messages, gradient accents, no footer
     # ------------------------------------------------------------------
     t = get_theme_config()
     is_dark = st.session_state.get("theme", "dark") == "dark"
 
-    _accent = "#60a5fa" if is_dark else "#2563eb"
+    _accent = "#818cf8" if is_dark else "#4f46e5"
+    _accent2 = "#38bdf8" if is_dark else "#0ea5e9"
     _text = t["TEXT_COLOR"]
     _sub = t["TEXT_SUB"]
-    _card = "rgba(30,41,59,0.50)" if is_dark else "#ffffff"
-    _border = "rgba(255,255,255,0.07)" if is_dark else "rgba(0,0,0,0.06)"
-    _user_bg = "rgba(96,165,250,0.10)" if is_dark else "rgba(37,99,235,0.05)"
+    _bg = t["BG_COLOR"]
 
     st.markdown(f"""
     <style>
-      /* ---- Chat messages ---- */
+      /* ---- Hide footer in chat view ---- */
+      .appview-container > section > div > div > div > div:last-child hr,
+      #mem-footer-section {{
+        display: none !important;
+      }}
+
+      /* ---- Assistant messages: transparent, no card ---- */
       div[data-testid="stChatMessage"] {{
-        border-radius: 18px !important;
-        padding: 1rem 1.2rem !important;
-        background: {_card} !important;
-        border: 1px solid {_border} !important;
-        margin-bottom: 0.6rem !important;
-        backdrop-filter: blur(8px);
+        background: transparent !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0.8rem 0 !important;
+        margin-bottom: 0 !important;
+        border-bottom: 1px solid {'rgba(255,255,255,0.04)' if is_dark else 'rgba(0,0,0,0.04)'} !important;
       }}
       div[data-testid="stChatMessage"] p,
       div[data-testid="stChatMessage"] li,
       div[data-testid="stChatMessage"] span,
-      div[data-testid="stChatMessage"] td,
-      div[data-testid="stChatMessage"] th {{
+      div[data-testid="stChatMessage"] td {{
         color: {_text} !important;
-        font-size: 0.92rem !important;
-        line-height: 1.6 !important;
+        font-size: 0.9rem !important;
+        line-height: 1.7 !important;
       }}
       div[data-testid="stChatMessage"] strong {{
         color: {_accent} !important;
@@ -854,54 +858,101 @@ elif selection == "Informe del CEO":
       div[data-testid="stChatMessage"] h2,
       div[data-testid="stChatMessage"] h3 {{
         color: {_accent} !important;
-        font-size: 1rem !important;
-        margin-top: 0.6rem !important;
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
+        margin-top: 0.5rem !important;
+      }}
+      div[data-testid="stChatMessage"] ul {{
+        padding-left: 1.2rem !important;
       }}
       div[data-testid="stChatMessage"] code {{
-        background: {'rgba(255,255,255,0.06)' if is_dark else 'rgba(0,0,0,0.04)'} !important;
-        color: {_text} !important;
+        background: {'rgba(129,140,248,0.12)' if is_dark else 'rgba(79,70,229,0.08)'} !important;
+        color: {_accent} !important;
         border-radius: 4px !important;
-        padding: 1px 5px !important;
+        padding: 1px 6px !important;
+        font-size: 0.85rem !important;
       }}
 
-      /* ---- Chat input bar ---- */
+      /* ---- Input bar: floating glass ---- */
       div[data-testid="stChatInput"] {{
-        border-top: 1px solid {_border} !important;
+        border-top: none !important;
+        padding: 0.4rem 0 !important;
       }}
       div[data-testid="stChatInput"] textarea {{
-        background: {'#1e293b' if is_dark else '#f8fafc'} !important;
-        border: 1.5px solid {'rgba(96,165,250,0.35)' if is_dark else '#cbd5e1'} !important;
-        border-radius: 24px !important;
+        background: {'rgba(30,41,59,0.7)' if is_dark else '#ffffff'} !important;
+        border: 1.5px solid {'rgba(129,140,248,0.3)' if is_dark else 'rgba(79,70,229,0.2)'} !important;
+        border-radius: 28px !important;
         color: {_text} !important;
-        font-size: 0.92rem !important;
-        padding: 0.6rem 1rem !important;
+        font-size: 0.9rem !important;
+        padding: 0.7rem 1.2rem !important;
+        box-shadow: {'0 0 20px rgba(129,140,248,0.08)' if is_dark else '0 2px 8px rgba(0,0,0,0.06)'} !important;
+        backdrop-filter: blur(12px) !important;
       }}
       div[data-testid="stChatInput"] textarea:focus {{
         border-color: {_accent} !important;
-        box-shadow: 0 0 0 2px {'rgba(96,165,250,0.2)' if is_dark else 'rgba(37,99,235,0.15)'} !important;
+        box-shadow: 0 0 0 3px {'rgba(129,140,248,0.15)' if is_dark else 'rgba(79,70,229,0.12)'},
+                    {'0 0 24px rgba(129,140,248,0.12)' if is_dark else '0 2px 12px rgba(0,0,0,0.08)'} !important;
       }}
       div[data-testid="stChatInput"] textarea::placeholder {{
         color: {_sub} !important;
       }}
       div[data-testid="stChatInput"] button {{
-        background: {_accent} !important;
+        background: linear-gradient(135deg, {_accent}, {_accent2}) !important;
         color: #fff !important;
         border-radius: 50% !important;
+        box-shadow: 0 2px 10px {'rgba(129,140,248,0.3)' if is_dark else 'rgba(79,70,229,0.25)'} !important;
+        transition: transform 0.15s, box-shadow 0.15s !important;
       }}
       div[data-testid="stChatInput"] button:hover {{
-        filter: brightness(1.15) !important;
+        transform: scale(1.08) !important;
+        box-shadow: 0 4px 16px {'rgba(129,140,248,0.4)' if is_dark else 'rgba(79,70,229,0.35)'} !important;
       }}
 
-      /* ---- Status pills ---- */
+      /* ---- Welcome hero ---- */
+      .mem-hero {{
+        text-align: center;
+        padding: 2.5rem 1rem 1.5rem;
+      }}
+      .mem-hero-icon {{
+        width: 56px; height: 56px; margin: 0 auto 0.8rem;
+        border-radius: 16px; display: flex; align-items: center; justify-content: center;
+        font-size: 1.6rem;
+        background: linear-gradient(135deg, {_accent}, {_accent2});
+        box-shadow: 0 4px 20px {'rgba(129,140,248,0.25)' if is_dark else 'rgba(79,70,229,0.2)'};
+      }}
+      .mem-hero h2 {{
+        margin: 0 0 0.3rem; font-size: 1.4rem; font-weight: 800;
+        color: {_text} !important;
+        -webkit-text-fill-color: {_text} !important;
+      }}
+      .mem-hero p {{
+        color: {_sub}; font-size: 0.82rem; margin: 0;
+      }}
+
+      /* ---- Topic chips ---- */
+      .mem-topics {{
+        display: flex; justify-content: center; flex-wrap: wrap;
+        gap: 0.5rem; margin: 0.8rem auto 1.5rem; max-width: 500px;
+      }}
+      .mem-topics .chip {{
+        font-size: 0.72rem; font-weight: 600;
+        padding: 5px 14px; border-radius: 999px;
+        color: {_accent};
+        background: {'rgba(129,140,248,0.08)' if is_dark else 'rgba(79,70,229,0.06)'};
+        border: 1px solid {'rgba(129,140,248,0.2)' if is_dark else 'rgba(79,70,229,0.15)'};
+      }}
+
+      /* ---- Status bar ---- */
       .mem-status {{
         display: flex; justify-content: center; flex-wrap: wrap;
-        gap: 0.4rem; margin: 0.2rem auto 1.2rem; max-width: 620px;
+        gap: 0.4rem; margin: 0 auto 0.5rem; max-width: 600px;
       }}
       .mem-status .pill {{
-        font-size: 0.68rem; font-weight: 600; padding: 2px 10px;
+        font-size: 0.65rem; font-weight: 600; padding: 2px 9px;
         border-radius: 999px; display: inline-flex; align-items: center; gap: 4px;
-        color: {_sub}; background: {'rgba(255,255,255,0.05)' if is_dark else 'rgba(0,0,0,0.04)'};
-        border: 1px solid {_border};
+        color: {_sub};
+        background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(0,0,0,0.02)'};
+        border: 1px solid {'rgba(255,255,255,0.06)' if is_dark else 'rgba(0,0,0,0.06)'};
       }}
       .pill .d {{ width: 6px; height: 6px; border-radius: 50%; display: inline-block; }}
       .d-ok   {{ background: #22c55e; }}
@@ -964,41 +1015,48 @@ elif selection == "Informe del CEO":
     if "ceo_period_key" not in st.session_state:
         st.session_state.ceo_period_key = current_period_key
     if "ceo_chat_messages" not in st.session_state:
-        st.session_state.ceo_chat_messages = [
-            {
-                "role": "assistant",
-                "content": (
-                    "Hola, soy tu **Consultor MEM AI**.\n\n"
-                    "Tengo acceso a los indicadores del mercado electrico colombiano "
-                    "para el periodo que seleccionaste en el panel lateral.\n\n"
-                    "Puedes preguntarme sobre:\n"
-                    "- **Precios** de bolsa y escasez\n"
-                    "- **Demanda** comercial y generacion\n"
-                    "- **Embalses** y aportes hidricos\n"
-                    "- **Riesgos** del mercado"
-                ),
-            }
-        ]
+        st.session_state.ceo_chat_messages = []
     elif st.session_state.ceo_period_key != current_period_key:
         st.session_state.ceo_period_key = current_period_key
-        st.session_state.ceo_chat_messages = [
-            {
-                "role": "assistant",
-                "content": f"Periodo actualizado a **{start_str}** / **{end_str}**. "
-                           "Los datos han sido recargados. Que deseas analizar?",
-            }
-        ]
+        st.session_state.ceo_chat_messages = []
 
-    # --- Status pills ---
-    dot_cls = "d-ok" if state == "NORMAL" else ("d-warn" if state == "ALERTA" else "d-crit")
-    st.markdown(f"""
-    <div class="mem-status">
-      <span class="pill"><span class="d {dot_cls}"></span> {state}</span>
-      <span class="pill">{start_str} &rarr; {end_str}</span>
-      <span class="pill">Presion {pressure_now:.1f}%</span>
-      <span class="pill">Embalse {util_now:.1f}%</span>
-    </div>
-    """, unsafe_allow_html=True)
+    has_messages = len(st.session_state.ceo_chat_messages) > 0
+
+    # --- Welcome hero (only when chat is empty) ---
+    if not has_messages:
+        dot_cls = "d-ok" if state == "NORMAL" else ("d-warn" if state == "ALERTA" else "d-crit")
+        st.markdown(f"""
+        <div class="mem-hero">
+          <div class="mem-hero-icon">⚡</div>
+          <h2>Consultor MEM AI</h2>
+          <p>Analisis inteligente del mercado electrico colombiano</p>
+        </div>
+        <div class="mem-topics">
+          <span class="chip">Precios de bolsa</span>
+          <span class="chip">Precio de escasez</span>
+          <span class="chip">Demanda y generacion</span>
+          <span class="chip">Embalses</span>
+          <span class="chip">Aportes hidricos</span>
+          <span class="chip">Riesgo del mercado</span>
+        </div>
+        <div class="mem-status">
+          <span class="pill"><span class="d {dot_cls}"></span> {state}</span>
+          <span class="pill">{start_str} &rarr; {end_str}</span>
+          <span class="pill">Presion {pressure_now:.1f}%</span>
+          <span class="pill">Embalse {util_now:.1f}%</span>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        # Compact status bar when chat has messages
+        dot_cls = "d-ok" if state == "NORMAL" else ("d-warn" if state == "ALERTA" else "d-crit")
+        st.markdown(f"""
+        <div class="mem-status">
+          <span class="pill"><span class="d {dot_cls}"></span> {state}</span>
+          <span class="pill">{start_str} &rarr; {end_str}</span>
+          <span class="pill">Presion {pressure_now:.1f}%</span>
+          <span class="pill">Embalse {util_now:.1f}%</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     # --- Chat history ---
     for msg in st.session_state.ceo_chat_messages:
@@ -1008,7 +1066,7 @@ elif selection == "Informe del CEO":
 
     # --- Chat input ---
     question = st.chat_input(
-        "Pregunta sobre precios, demanda, embalses..."
+        "Pregunta sobre precios, demanda, embalses, riesgos..."
         if st.session_state.ceo_api_key
         else "Configura tu API Key en el panel lateral para comenzar"
     )
@@ -1033,7 +1091,7 @@ elif selection == "Informe del CEO":
             if not st.session_state.ceo_api_key:
                 answer = (
                     "Para activar el consultor, configura tu **API Key de Gemini** "
-                    "en el panel lateral izquierdo (seccion API KEY)."
+                    "en el panel lateral izquierdo (seccion **API KEY**)."
                 )
                 st.markdown(answer)
             else:
@@ -1110,11 +1168,12 @@ elif selection == "Explorador":
 
 
 # ======================================================================
-# FOOTER
+# FOOTER  (hidden in CEO chat view via CSS)
 # ======================================================================
-st.markdown("---")
-st.markdown("""
-<div style="display:flex;justify-content:center;color:#94a3b8;font-size:0.75rem;">
-    <b>POWERED BY STREAMLIT</b>
-</div>
-""", unsafe_allow_html=True)
+if selection != "Informe del CEO":
+    st.markdown("---")
+    st.markdown("""
+    <div style="display:flex;justify-content:center;color:#94a3b8;font-size:0.75rem;">
+        <b>POWERED BY STREAMLIT</b>
+    </div>
+    """, unsafe_allow_html=True)
