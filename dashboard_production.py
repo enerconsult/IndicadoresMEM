@@ -1139,33 +1139,41 @@ elif selection == "Informe del CEO":
 
     # --- ACTION BUTTONS (Charts) ---
     # Render immediately after history, before the input box
-    if (st.session_state.ceo_chat_messages and 
-        st.session_state.ceo_chat_messages[-1]["role"] == "assistant" and 
-        st.session_state.ceo_api_key):
-        
-        last_msg = st.session_state.ceo_chat_messages[-1]["content"]
-        
-        # 1. Determine Context
-        context_type = "general"
-        if "precio" in last_msg.lower() or "bolsa" in last_msg.lower():
-            context_type = "precio"
-        elif "demanda" in last_msg.lower() or "consumo" in last_msg.lower():
-            context_type = "demanda"
-        elif "embalse" in last_msg.lower() or "aportes" in last_msg.lower() or "hidrico" in last_msg.lower():
-            context_type = "hidro"
-        
-        # Suggestion UI
-        st.markdown(f"""
-        <div style="margin-top:0.5rem;margin-bottom:0.5rem;text-align:center;">
-             <span style="font-size:0.8rem;color:{t['TEXT_SUB']};">
-                 ¿Quieres profundizar en estos datos?
-             </span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        if st.button(f"📊 Generar Gráficos de {context_type.capitalize()}", key="btn_gen_charts", use_container_width=True):
-             st.session_state.ceo_chart_request = {"context": context_type, "timestamp": dt.datetime.now().timestamp()}
-             st.rerun()
+    # Only show if:
+    # 1. Chat is not empty
+    # 2. Last message is from assistant
+    # 3. API Key is present
+    # 4. Last message is NOT an error message
+    if st.session_state.ceo_chat_messages:
+        last_msg = st.session_state.ceo_chat_messages[-1].get("content", "")
+        last_role = st.session_state.ceo_chat_messages[-1].get("role")
+        is_error = last_msg.startswith("Error") or last_msg.startswith("No pude") or "API Key" in last_msg
+
+        if (last_role == "assistant" and 
+            st.session_state.ceo_api_key and 
+            not is_error):
+            
+            # 1. Determine Context
+            context_type = "general"
+            if "precio" in last_msg.lower() or "bolsa" in last_msg.lower():
+                context_type = "precio"
+            elif "demanda" in last_msg.lower() or "consumo" in last_msg.lower():
+                context_type = "demanda"
+            elif "embalse" in last_msg.lower() or "aportes" in last_msg.lower() or "hidrico" in last_msg.lower():
+                context_type = "hidro"
+            
+            # Suggestion UI
+            st.markdown(f"""
+            <div style="margin-top:0.5rem;margin-bottom:0.5rem;text-align:center;">
+                 <span style="font-size:0.8rem;color:{t['TEXT_SUB']};">
+                     ¿Quieres profundizar en estos datos?
+                 </span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button(f"📊 Generar Gráficos de {context_type.capitalize()}", key="btn_gen_charts", use_container_width=True):
+                 st.session_state.ceo_chart_request = {"context": context_type, "timestamp": dt.datetime.now().timestamp()}
+                 st.rerun()
 
     # --- Render Auto-Generated Charts (Container) ---
     if "ceo_chart_request" in st.session_state and st.session_state.ceo_chart_request:
