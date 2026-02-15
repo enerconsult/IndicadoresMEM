@@ -779,54 +779,119 @@ elif selection == "Informe del CEO":
     # ------------------------------------------------------------------
     # ChatGPT-style chat UI using native Streamlit chat components
     # ------------------------------------------------------------------
-    st.markdown("""
+    t = get_theme_config()
+    is_dark = st.session_state.get("theme", "dark") == "dark"
+
+    # Theme-aware colours
+    _hdr_color = "#60a5fa" if is_dark else "#2563eb"
+    _sub_color = t["TEXT_SUB"]
+    _pill_bg = "rgba(96,165,250,0.12)" if is_dark else "rgba(37,99,235,0.06)"
+    _pill_border = "rgba(96,165,250,0.25)" if is_dark else "rgba(37,99,235,0.12)"
+    _pill_text = "#93c5fd" if is_dark else "#475569"
+    _msg_bg = "rgba(30,41,59,0.55)" if is_dark else "#ffffff"
+    _msg_border = "rgba(255,255,255,0.08)" if is_dark else "rgba(0,0,0,0.06)"
+    _input_bg = "#1e293b" if is_dark else "#f1f5f9"
+    _input_border = "rgba(96,165,250,0.3)" if is_dark else "#cbd5e1"
+    _input_text = "#f1f5f9" if is_dark else "#1e293b"
+
+    st.markdown(f"""
     <style>
-      /* Branded header */
-      .mem-chat-header {
+      /* ---- Chat header ---- */
+      .mem-chat-header {{
         text-align: center;
-        padding: 1.2rem 0 0.6rem;
-      }
-      .mem-chat-header h2 {
-        margin: 0; font-size: 1.5rem; font-weight: 800;
-        background: linear-gradient(135deg, #2563eb, #7c3aed);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-      }
-      .mem-chat-header p {
-        color: #64748b; font-size: 0.82rem; margin: 0.2rem 0 0;
-      }
-      /* Status pill bar */
-      .mem-status-bar {
+        padding: 1rem 0 0.4rem;
+      }}
+      .mem-chat-header h2 {{
+        margin: 0; font-size: 1.6rem; font-weight: 800;
+        color: {_hdr_color} !important;
+        -webkit-text-fill-color: {_hdr_color} !important;
+        letter-spacing: -0.02em;
+      }}
+      .mem-chat-header p {{
+        color: {_sub_color}; font-size: 0.8rem; margin: 0.15rem 0 0;
+      }}
+
+      /* ---- Status pill bar ---- */
+      .mem-status-bar {{
         display: flex; justify-content: center; flex-wrap: wrap;
-        gap: 0.6rem; padding: 0.5rem 1rem; border-radius: 10px;
-        background: rgba(37,99,235,0.05);
-        border: 1px solid rgba(37,99,235,0.10);
-        margin: 0 auto 0.8rem; max-width: 640px;
-      }
-      .mem-pill {
-        font-size: 0.72rem; font-weight: 600; padding: 3px 10px;
+        gap: 0.5rem; padding: 0.45rem 0.8rem; border-radius: 10px;
+        background: {_pill_bg};
+        border: 1px solid {_pill_border};
+        margin: 0 auto 1rem; max-width: 620px;
+      }}
+      .mem-pill {{
+        font-size: 0.7rem; font-weight: 600; padding: 3px 10px;
         border-radius: 999px; display: inline-flex; align-items: center; gap: 5px;
-      }
-      .mem-pill .dot {
+        color: {_pill_text};
+      }}
+      .mem-pill .dot {{
         width: 7px; height: 7px; border-radius: 50%; display: inline-block;
-      }
-      .dot-green  { background: #22c55e; }
-      .dot-yellow { background: #eab308; }
-      .dot-red    { background: #ef4444; }
-      .mem-pill-muted { color: #64748b; background: rgba(100,116,139,0.08); }
-      /* Tweak native chat styling */
-      div[data-testid="stChatMessage"] {
+      }}
+      .dot-green  {{ background: #22c55e; }}
+      .dot-yellow {{ background: #eab308; }}
+      .dot-red    {{ background: #ef4444; }}
+
+      /* ---- Chat messages ---- */
+      div[data-testid="stChatMessage"] {{
+        border-radius: 16px !important;
+        padding: 0.9rem 1.1rem !important;
+        background: {_msg_bg} !important;
+        border: 1px solid {_msg_border} !important;
+        margin-bottom: 0.5rem !important;
+      }}
+      div[data-testid="stChatMessage"] p,
+      div[data-testid="stChatMessage"] li,
+      div[data-testid="stChatMessage"] span {{
+        color: {t['TEXT_COLOR']} !important;
+      }}
+      div[data-testid="stChatMessage"] strong {{
+        color: {_hdr_color} !important;
+      }}
+
+      /* ---- Chat input bar ---- */
+      div[data-testid="stChatInput"] {{
+        background: transparent !important;
+        border-top: 1px solid {_msg_border} !important;
+        padding-top: 0.6rem !important;
+      }}
+      div[data-testid="stChatInput"] textarea {{
+        background: {_input_bg} !important;
+        border: 1px solid {_input_border} !important;
+        border-radius: 24px !important;
+        color: {_input_text} !important;
+        font-size: 0.92rem !important;
+      }}
+      div[data-testid="stChatInput"] textarea::placeholder {{
+        color: {_sub_color} !important;
+      }}
+      div[data-testid="stChatInput"] button {{
+        background: {_hdr_color} !important;
+        color: #ffffff !important;
+        border-radius: 50% !important;
+      }}
+
+      /* ---- API key section ---- */
+      .mem-key-section div[data-testid="stExpander"] {{
+        background: {_msg_bg} !important;
+        border: 1px solid {_msg_border} !important;
         border-radius: 14px !important;
-        padding: 0.8rem 1rem !important;
-      }
-      div[data-testid="stChatInput"] textarea {
-        border-radius: 999px !important;
-      }
-      /* API key expander */
-      .mem-key-section details {
-        border: 1px solid rgba(148,163,184,0.22) !important;
-        border-radius: 12px !important;
-      }
+        margin-bottom: 1rem !important;
+      }}
+      .mem-key-section div[data-testid="stExpander"] summary {{
+        color: {_sub_color} !important;
+        font-size: 0.82rem !important;
+      }}
+      .mem-key-section div[data-testid="stExpander"] div[data-testid="stTextInput"] input {{
+        background: {_input_bg} !important;
+        border: 1px solid {_input_border} !important;
+        color: {_input_text} !important;
+        border-radius: 10px !important;
+      }}
+      .mem-key-section button {{
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 0.8rem !important;
+      }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -911,10 +976,10 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_reset_key_input = False
 
     # --- Header ---
-    st.markdown("""
+    st.markdown(f"""
     <div class="mem-chat-header">
       <h2>Consultor MEM AI</h2>
-      <p>Experto en mercado electrico colombiano &middot; Powered by Gemini</p>
+      <p style="color:{_sub_color};">Analisis inteligente del mercado electrico colombiano</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -961,7 +1026,7 @@ elif selection == "Informe del CEO":
     # --- Chat history (native st.chat_message) ---
     for msg in st.session_state.ceo_chat_messages:
         role = msg.get("role", "assistant")
-        avatar = "https://api.dicebear.com/9.x/bottts/svg?seed=mem" if role == "assistant" else None
+        avatar = "\u26a1" if role == "assistant" else "\U0001f464"
         with st.chat_message(role, avatar=avatar):
             st.markdown(msg.get("content", ""))
 
@@ -990,7 +1055,7 @@ elif selection == "Informe del CEO":
             st.markdown(question)
 
         # Generate assistant response
-        with st.chat_message("assistant", avatar="https://api.dicebear.com/9.x/bottts/svg?seed=mem"):
+        with st.chat_message("assistant", avatar="\u26a1"):
             if not st.session_state.ceo_api_key:
                 answer = "Configura tu **API Key de Gemini** en el panel superior para activar el consultor."
                 st.markdown(answer)
