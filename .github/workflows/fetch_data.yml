@@ -1,0 +1,50 @@
+name: Fetch XM Data
+
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install pydataxm pandas pyarrow
+
+      - name: Fetch XM metrics
+        id: fetch
+        continue-on-error: true
+        run: python scripts/fetch_data.py
+
+      - name: Check if parquet files were generated
+        id: check
+        run: |
+          count=$(find data/ -name "*.parquet" -type f 2>/dev/null | wc -l)
+          echo "parquet_count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt "0" ]; then
+            echo "Data files found: $count"
+          else
+            echo "No parquet files generated - XM API may be unavailable"
+          fi
+
+      - name: Commit and push updated data
+        if: steps.check.outputs.parquet_count > 0
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "data: daily XM metrics update $(date -u +%Y-%m-%d)"
+          git push
