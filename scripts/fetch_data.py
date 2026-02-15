@@ -10,6 +10,7 @@ for near-instant load times.
 import asyncio
 import json
 import datetime as dt
+import os
 import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -63,7 +64,8 @@ LOOKBACK_DAYS = 400
 # Retry configuration
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 5
-CONCURRENT_WORKERS = 2  # Conservative to avoid overwhelming XM server
+# In GitHub Actions, prefer fewer workers for XM stability.
+CONCURRENT_WORKERS = 1 if os.getenv("GITHUB_ACTIONS") == "true" else 2
 REQUEST_DELAY = 2  # Seconds between requests to same client
 REQUEST_TIMEOUT_SECONDS = 45
 
@@ -96,6 +98,22 @@ class _Client(ReadDB):
                     raise RuntimeError(f"Unexpected content-type '{ctype}': {text}")
                 load = await response.json()
                 return pd.json_normalize(load["Items"], endpoint, "Date", sep="_")
+
+    async def run_async(self, list_bodies, endpoint):
+        """
+        Override pydataxm batch behavior:
+        run requests sequentially per metric to avoid burst throttling in XM.
+        """
+        out = []
+        for idx, body in enumerate(list_bodies):
+            out.append(await self.async_get_df(body, endpoint))
+            if idx < len(list_bodies) - 1:
+                await asyncio.sleep(0.2)
+        if not out:
+            return pd.DataFrame()
+        df = pd.concat(out)
+        df.reset_index(drop=True, inplace=True)
+        return df
 
     def request_data(self, coleccion, metrica, start_date, end_date, filtros=None):
         """
@@ -276,14 +294,15 @@ def fetch_all():
                 return metric_id, False
                 
             except Exception as e:
-                error_msg = str(e)
-                if "timeout" in error_msg.lower() or "Cannot connect" in error_msg:
-                    if attempt < MAX_RETRIES:
-                        print(f"  RETRY {metric_id:25s}  (attempt {attempt}/{MAX_RETRIES}) - timeout")
-                        time.sleep(RETRY_DELAY_SECONDS * attempt)
-                        continue
-                
-                print(f"  ERR   {metric_id}: {e}")
+                detail = str(e).strip() or repr(e)
+                if attempt < MAX_RETRIES:
+                    print(
+                        f"  RETRY {metric_id:25s}  "
+                        f"(attempt {attempt}/{MAX_RETRIES}) - {detail[:120]}"
+                    )
+                    time.sleep(RETRY_DELAY_SECONDS * attempt)
+                    continue
+                print(f"  ERR   {metric_id}: {detail}")
                 return metric_id, False
         
         return metric_id, False
