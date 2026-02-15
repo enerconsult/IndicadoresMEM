@@ -1182,11 +1182,9 @@ elif selection == "Informe del CEO":
         st.markdown(f"### 📊 Análisis Gráfico: {ctx.capitalize()}")
         st.markdown(f"<span style='color:{t['TEXT_SUB']}'>Gráficos generados automáticamente para enriquecer la respuesta.</span>", unsafe_allow_html=True)
         
-        g1, g2, g3 = st.columns(3)
+        g1, g2 = st.columns(2)
         
-        # (Chart Logic - kept mostly same, ensuring variables exist)
         try:
-             # ... [REINSERT CHART LOGIC HERE - ABBREVIATED FOR REPLACEMENT TOOL BUT FULL IN REALITY] ...
              # --- LOGIC: PRECIO ---
             if ctx == "precio":
                 df_p = calculate_periodicity(df_bolsa, "1D", "mean")
@@ -1194,50 +1192,44 @@ elif selection == "Informe del CEO":
                     fig1 = px.line(df_p, x="Date", y=get_value_col(df_p), title="Evolución Precio Bolsa")
                     fig1.update_traces(line_color=t["COLOR_ORANGE"], line_width=2)
                     g1.plotly_chart(style_fig(fig1), use_container_width=True)
-                
-                if df_p is not None:
-                    fig2 = px.histogram(df_p, x=get_value_col(df_p), title="Distribución de Precios")
-                    fig2.update_traces(marker_color=t["COLOR_ORANGE"], opacity=0.7)
-                    g2.plotly_chart(style_fig(fig2), use_container_width=True)
 
                 df_esc = calculate_periodicity(df_escasez, "1D", "mean")
                 if df_p is not None and df_esc is not None:
-                    fig3 = go.Figure()
-                    fig3.add_trace(go.Scatter(x=df_p["Date"], y=df_p[get_value_col(df_p)], name="Bolsa", line=dict(color=t["COLOR_ORANGE"])))
-                    fig3.add_trace(go.Scatter(x=df_esc["Date"], y=df_esc[get_value_col(df_esc)], name="Escasez", line=dict(color=t["COLOR_BLUE_DARK"], dash="dot")))
-                    fig3.update_layout(title="Precio vs Escasez")
-                    g3.plotly_chart(style_fig(fig3), use_container_width=True)
+                    fig2 = go.Figure()
+                    fig2.add_trace(go.Scatter(x=df_p["Date"], y=df_p[get_value_col(df_p)], name="Bolsa", line=dict(color=t["COLOR_ORANGE"])))
+                    fig2.add_trace(go.Scatter(x=df_esc["Date"], y=df_esc[get_value_col(df_esc)], name="Escasez", line=dict(color=t["COLOR_BLUE_DARK"], dash="dot")))
+                    fig2.update_layout(title="Precio vs Escasez")
+                    g2.plotly_chart(style_fig(fig2), use_container_width=True)
 
             # --- LOGIC: DEMANDA ---
             elif ctx == "demanda":
                 df_d = calculate_periodicity(df_demanda, "1D", "sum")
-                if df_d is not None:
-                    vcol = get_value_col(df_d)
-                    fig1 = px.area(df_d, x="Date", y=vcol, title="Evolución Demanda")
-                    fig1.update_traces(line_color=t["COLOR_BLUE"], fillcolor="rgba(59, 130, 246, 0.2)")
-                    g1.plotly_chart(style_fig(fig1), use_container_width=True)
+                df_g = calculate_periodicity(df_gen, "1D", "sum")
                 
+                if df_d is not None and df_g is not None:
+                     fig1 = go.Figure()
+                     fig1.add_trace(go.Scatter(x=df_d["Date"], y=df_d[get_value_col(df_d)], name="Demanda", fill='tozeroy', line=dict(color=t["COLOR_BLUE"])))
+                     fig1.add_trace(go.Scatter(x=df_g["Date"], y=df_g[get_value_col(df_g)], name="Generación", line=dict(color=t["COLOR_ORANGE"])))
+                     fig1.update_layout(title="Demanda vs Generación")
+                     g1.plotly_chart(style_fig(fig1), use_container_width=True)
+
                 if df_d is not None:
+                     vcol = get_value_col(df_d)
                      df_d["Weekday"] = pd.to_datetime(df_d["Date"]).dt.day_name()
                      df_w = df_d.groupby("Weekday")[vcol].mean().reindex(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]).reset_index()
                      fig2 = px.bar(df_w, x="Weekday", y=vcol, title="Perfil Semanal Promedio")
                      fig2.update_traces(marker_color=t["COLOR_BLUE"])
                      g2.plotly_chart(style_fig(fig2), use_container_width=True)
 
-                df_g = calculate_periodicity(df_gen, "1D", "sum")
-                if df_d is not None and df_g is not None:
-                     fig3 = go.Figure()
-                     fig3.add_trace(go.Scatter(x=df_d["Date"], y=df_d[get_value_col(df_d)], name="Demanda", fill='tozeroy'))
-                     fig3.add_trace(go.Scatter(x=df_g["Date"], y=df_g[get_value_col(df_g)], name="Generación"))
-                     fig3.update_layout(title="Demanda vs Generación")
-                     g3.plotly_chart(style_fig(fig3), use_container_width=True)
-
             # --- LOGIC: HIDRO (Embalses) ---
             elif ctx == "hidro":
+                df_c = calculate_periodicity(df_cap, "1D", "mean")
                 df_v = calculate_periodicity(df_vol, "1D", "mean")
-                if df_v is not None:
-                    fig1 = px.line(df_v, x="Date", y=get_value_col(df_v), title="Volumen Útil Embalse")
-                    fig1.update_traces(line_color="#22c55e", fill='tozeroy', fillcolor="rgba(34, 197, 94, 0.1)")
+                if df_v is not None and df_c is not None:
+                    fig1 = go.Figure()
+                    fig1.add_trace(go.Scatter(x=df_c["Date"], y=df_c[get_value_col(df_c)], name="Capacidad Total", line=dict(dash='dot', color="#94a3b8")))
+                    fig1.add_trace(go.Scatter(x=df_v["Date"], y=df_v[get_value_col(df_v)], name="Volumen Actual", fill='tonexty', line=dict(color="#22c55e")))
+                    fig1.update_layout(title="Nivel de Llenado (%)")
                     g1.plotly_chart(style_fig(fig1), use_container_width=True)
 
                 df_a = calculate_periodicity(df_apor, "1D", "sum")
@@ -1246,16 +1238,8 @@ elif selection == "Informe del CEO":
                     fig2 = go.Figure()
                     fig2.add_trace(go.Bar(x=df_a["Date"], y=df_a[get_value_col(df_a)], name="Aportes", marker_color=t["COLOR_BLUE"]))
                     fig2.add_trace(go.Scatter(x=df_m["Date"], y=df_m[get_value_col(df_m)], name="Media Hist", line=dict(color=t["COLOR_ORANGE"])))
-                    fig2.update_layout(title="Aportes Hídricos vs Media")
+                    fig2.update_layout(title="Aportes vs Media")
                     g2.plotly_chart(style_fig(fig2), use_container_width=True)
-
-                df_c = calculate_periodicity(df_cap, "1D", "mean")
-                if df_v is not None and df_c is not None:
-                    fig3 = go.Figure()
-                    fig3.add_trace(go.Scatter(x=df_c["Date"], y=df_c[get_value_col(df_c)], name="Capacidad Total", line=dict(dash='dot')))
-                    fig3.add_trace(go.Scatter(x=df_v["Date"], y=df_v[get_value_col(df_v)], name="Volumen Actual", fill='tonexty'))
-                    fig3.update_layout(title="Nivel de Llenado")
-                    g3.plotly_chart(style_fig(fig3), use_container_width=True)
 
             # --- LOGIC: GENERAL (Fallback) ---
             else:
@@ -1265,17 +1249,11 @@ elif selection == "Informe del CEO":
                      fig1.update_traces(line_color=t["COLOR_ORANGE"])
                      g1.plotly_chart(style_fig(fig1), use_container_width=True)
                 
-                df_d = calculate_periodicity(df_demanda, "1D", "sum")
-                if df_d is not None:
-                     fig2 = px.area(df_d, x="Date", y=get_value_col(df_d), title="Demanda")
-                     fig2.update_traces(line_color=t["COLOR_BLUE"])
-                     g2.plotly_chart(style_fig(fig2), use_container_width=True)
-                     
                 df_v = calculate_periodicity(df_vol, "1D", "mean")
                 if df_v is not None:
-                     fig3 = px.line(df_v, x="Date", y=get_value_col(df_v), title="Nivel Embalses")
-                     fig3.update_traces(line_color="#22c55e")
-                     g3.plotly_chart(style_fig(fig3), use_container_width=True)
+                     fig2 = px.line(df_v, x="Date", y=get_value_col(df_v), title="Nivel Embalses")
+                     fig2.update_traces(line_color="#22c55e")
+                     g2.plotly_chart(style_fig(fig2), use_container_width=True)
         
         except Exception as e:
             st.error(f"Error generando gráficos: {e}")

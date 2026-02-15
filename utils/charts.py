@@ -10,7 +10,6 @@ def style_fig(fig, y_axis_title=None):
     fig.update_layout(
         template=t["PLOT_TEMPLATE"],
         font_family="Inter",
-        title_text="",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=10, r=10, t=30, b=10),
