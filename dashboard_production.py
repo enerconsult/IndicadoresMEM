@@ -1,6 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
+import pandas as pd
 import datetime as dt
 
 from utils.style import init_theme, toggle_theme, get_theme_config, load_css
@@ -65,6 +66,71 @@ def _pct_change(current, previous):
     if previous in (None, 0):
         return 0.0
     return ((current - previous) / previous) * 100.0
+
+
+def _metric_to_daily_value(df, mode="mean"):
+    if df is None or df.empty or "Date" not in df.columns:
+        return None
+    tmp = df.copy()
+    tmp["Date"] = pd.to_datetime(tmp["Date"])
+    hcols = [c for c in tmp.columns if "Hour" in c]
+
+    if hcols:
+        if mode == "sum":
+            tmp["_value"] = tmp[hcols].sum(axis=1)
+        else:
+            tmp["_value"] = tmp[hcols].mean(axis=1)
+    else:
+        col = get_value_col(tmp)
+        if col is None:
+            return None
+        tmp["_value"] = pd.to_numeric(tmp[col], errors="coerce")
+
+    agg = "sum" if mode == "sum" else "mean"
+    out = tmp[["Date", "_value"]].dropna().groupby("Date", as_index=False)["_value"].agg(agg)
+    return out
+
+
+def _aggregate_period_sum(df):
+    daily = _metric_to_daily_value(df, mode="sum")
+    if daily is None or daily.empty:
+        return 0.0
+    return float(daily["_value"].sum())
+
+
+def _add_chart_stats(fig, df, value_col, label, color):
+    if df is None or df.empty or value_col not in df.columns:
+        return
+    data = df[["Date", value_col]].dropna()
+    if data.empty:
+        return
+
+    vmax_idx = data[value_col].idxmax()
+    vmin_idx = data[value_col].idxmin()
+    vmax = data.loc[vmax_idx]
+    vmin = data.loc[vmin_idx]
+    vavg = float(data[value_col].mean())
+
+    same_point = (vmax["Date"] == vmin["Date"]) and (float(vmax[value_col]) == float(vmin[value_col]))
+    fig.add_trace(go.Scatter(
+        x=[vmax["Date"]], y=[vmax[value_col]],
+        name=f"Máx {label}", mode="markers+text",
+        text=[f"Máx {vmax[value_col]:.1f}"], textposition="top center",
+        marker=dict(color=color, size=10, symbol="triangle-up"),
+    ))
+    if not same_point:
+        fig.add_trace(go.Scatter(
+            x=[vmin["Date"]], y=[vmin[value_col]],
+            name=f"Mín {label}", mode="markers+text",
+            text=[f"Mín {vmin[value_col]:.1f}"], textposition="bottom center",
+            marker=dict(color=color, size=10, symbol="triangle-down"),
+        ))
+    fig.add_trace(go.Scatter(
+        x=data["Date"], y=[vavg] * len(data),
+        name=f"Prom {label}", mode="lines",
+        line=dict(color=color, width=1.5, dash="dot"),
+        opacity=0.8,
+    ))
 
 # ======================================================================
 # SIDEBAR
@@ -135,6 +201,7 @@ def _chart_price_vs_scarcity(df_bolsa, df_escasez, df_esc_sup, df_esc_inf):
             name="Precio Bolsa", mode="lines+markers",
             line=dict(color=t["COLOR_ORANGE"]),
         ))
+        _add_chart_stats(fig, df_b, vcol, "Bolsa", t["COLOR_ORANGE"])
 
         bx = df_b["Date"] if period == "1D" else None
         for src, name, color, dash in [
@@ -172,6 +239,9 @@ def _chart_demand_vs_gen(df_demanda, df_gen):
             name="Demanda Comercial", mode="lines+markers",
             line=dict(color=t["COLOR_BLUE"]),
         ))
+        df_dem_stats = df_d[["Date"]].copy()
+        df_dem_stats["_stat"] = y_dem.values
+        _add_chart_stats(fig, df_dem_stats, "_stat", "Demanda", t["COLOR_BLUE"])
 
         if df_g is not None and not df_g.empty:
             gcol = get_value_col(df_g)
@@ -203,6 +273,9 @@ def _chart_capacity_volume(df_cap, df_vol):
             name="Volumen Útil", mode="none",
             fill="tozeroy", fillcolor="rgba(19,127,236,0.4)",
         ))
+        df_vol_stats = df_v[["Date"]].copy()
+        df_vol_stats["_stat"] = (df_v[vcol] / 1e6).values
+        _add_chart_stats(fig, df_vol_stats, "_stat", "Volumen", "#137fec")
         if df_c is not None and not df_c.empty:
             ccol = get_value_col(df_c)
             fig.add_trace(go.Scatter(
@@ -234,6 +307,9 @@ def _chart_hydro_contributions(df_apor, df_media):
             x=df_a["Date"], y=df_a[acol] / 1e6,
             name="Aportes Hídricos", marker_color=t["COLOR_BLUE"],
         ))
+        df_apor_stats = df_a[["Date"]].copy()
+        df_apor_stats["_stat"] = (df_a[acol] / 1e6).values
+        _add_chart_stats(fig, df_apor_stats, "_stat", "Aportes", t["COLOR_BLUE"])
         if df_m is not None and not df_m.empty:
             mcol = get_value_col(df_m)
             fig.add_trace(go.Scatter(
@@ -348,6 +424,7 @@ def _chart_hydro_efficiency(df_cap, df_vol, df_apor, df_media):
         name="Utilización de Embalse (%)", mode="lines+markers",
         line=dict(color=t["COLOR_ORANGE"], width=3),
     ))
+    _add_chart_stats(fig, util, "Utilizacion", "Embalse", t["COLOR_ORANGE"])
     st.plotly_chart(style_fig(fig, "%"), use_container_width=True)
 
     if not util.empty and not aportes.empty:
@@ -359,20 +436,25 @@ def _chart_hydro_efficiency(df_cap, df_vol, df_apor, df_media):
 
 
 def _build_market_risk_frame(df_bolsa, df_escasez, df_esc_sup, period):
-    df_b = calculate_periodicity(df_bolsa, period, "mean")
-    df_e = calculate_periodicity(df_escasez, period, "mean")
-    df_s = calculate_periodicity(df_esc_sup, period, "mean")
-    if any(x is None or x.empty for x in [df_b, df_e, df_s]):
+    if period in ("1M", "1Y"):
+        df_b = calculate_periodicity(df_bolsa, period, "mean")
+        df_e = calculate_periodicity(df_escasez, period, "mean")
+        df_s = calculate_periodicity(df_esc_sup, period, "mean")
+        b = _metric_to_daily_value(df_b, mode="mean")
+        e = _metric_to_daily_value(df_e, mode="mean")
+        s = _metric_to_daily_value(df_s, mode="mean")
+    else:
+        b = _metric_to_daily_value(df_bolsa, mode="mean")
+        e = _metric_to_daily_value(df_escasez, mode="mean")
+        s = _metric_to_daily_value(df_esc_sup, mode="mean")
+
+    if any(x is None or x.empty for x in [b, e, s]):
         return None
 
-    bcol = get_value_col(df_b)
-    ecol = get_value_col(df_e)
-    scol = get_value_col(df_s)
-
     risk = (
-        df_b[["Date", bcol]].rename(columns={bcol: "Bolsa"})
-        .merge(df_e[["Date", ecol]].rename(columns={ecol: "Escasez"}), on="Date", how="inner")
-        .merge(df_s[["Date", scol]].rename(columns={scol: "EscSup"}), on="Date", how="inner")
+        b.rename(columns={"_value": "Bolsa"})
+        .merge(e.rename(columns={"_value": "Escasez"}), on="Date", how="inner")
+        .merge(s.rename(columns={"_value": "EscSup"}), on="Date", how="inner")
     )
     risk = risk[(risk["EscSup"] > 0) & (risk["Bolsa"] > 0)].sort_values("Date")
     if risk.empty:
@@ -383,23 +465,29 @@ def _build_market_risk_frame(df_bolsa, df_escasez, df_esc_sup, period):
 
 
 def _build_hydro_frame(df_cap, df_vol, df_apor, df_media, period):
-    df_c = calculate_periodicity(df_cap, period, "mean")
-    df_v = calculate_periodicity(df_vol, period, "mean")
-    df_a = calculate_periodicity(df_apor, period, "sum")
-    df_m = calculate_periodicity(df_media, period, "sum")
-    if any(x is None or x.empty for x in [df_c, df_v, df_a, df_m]):
+    if period in ("1M", "1Y"):
+        df_c = calculate_periodicity(df_cap, period, "mean")
+        df_v = calculate_periodicity(df_vol, period, "mean")
+        df_a = calculate_periodicity(df_apor, period, "sum")
+        df_m = calculate_periodicity(df_media, period, "sum")
+        c = _metric_to_daily_value(df_c, mode="mean")
+        v = _metric_to_daily_value(df_v, mode="mean")
+        a = _metric_to_daily_value(df_a, mode="sum")
+        m = _metric_to_daily_value(df_m, mode="sum")
+    else:
+        c = _metric_to_daily_value(df_cap, mode="mean")
+        v = _metric_to_daily_value(df_vol, mode="mean")
+        a = _metric_to_daily_value(df_apor, mode="sum")
+        m = _metric_to_daily_value(df_media, mode="sum")
+
+    if any(x is None or x.empty for x in [c, v, a, m]):
         return None
 
-    ccol = get_value_col(df_c)
-    vcol = get_value_col(df_v)
-    acol = get_value_col(df_a)
-    mcol = get_value_col(df_m)
-
     hydro = (
-        df_v[["Date", vcol]].rename(columns={vcol: "Vol"})
-        .merge(df_c[["Date", ccol]].rename(columns={ccol: "Cap"}), on="Date", how="inner")
-        .merge(df_a[["Date", acol]].rename(columns={acol: "Aportes"}), on="Date", how="inner")
-        .merge(df_m[["Date", mcol]].rename(columns={mcol: "Media"}), on="Date", how="inner")
+        v.rename(columns={"_value": "Vol"})
+        .merge(c.rename(columns={"_value": "Cap"}), on="Date", how="inner")
+        .merge(a.rename(columns={"_value": "Aportes"}), on="Date", how="inner")
+        .merge(m.rename(columns={"_value": "Media"}), on="Date", how="inner")
     )
     hydro = hydro[(hydro["Cap"] > 0) & (hydro["Media"] > 0)].sort_values("Date")
     if hydro.empty:
@@ -531,10 +619,10 @@ elif selection == "Informe MEM":
             prev_end.strftime("%Y-%m-%d"),
         )
 
-    market_cur = _build_market_risk_frame(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), "1M")
-    hydro_cur = _build_hydro_frame(cur.get("CapaUtilDiarEner"), cur.get("VoluUtilDiarEner"), cur.get("AporEner"), cur.get("AporEnerMediHist"), "1M")
-    market_prev = _build_market_risk_frame(prev.get("PrecBolsNaci"), prev.get("PrecEsca"), prev.get("PrecEscaSup"), "1M")
-    hydro_prev = _build_hydro_frame(prev.get("CapaUtilDiarEner"), prev.get("VoluUtilDiarEner"), prev.get("AporEner"), prev.get("AporEnerMediHist"), "1M")
+    market_cur = _build_market_risk_frame(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), "RANGE")
+    hydro_cur = _build_hydro_frame(cur.get("CapaUtilDiarEner"), cur.get("VoluUtilDiarEner"), cur.get("AporEner"), cur.get("AporEnerMediHist"), "RANGE")
+    market_prev = _build_market_risk_frame(prev.get("PrecBolsNaci"), prev.get("PrecEsca"), prev.get("PrecEscaSup"), "RANGE")
+    hydro_prev = _build_hydro_frame(prev.get("CapaUtilDiarEner"), prev.get("VoluUtilDiarEner"), prev.get("AporEner"), prev.get("AporEnerMediHist"), "RANGE")
 
     pressure_now = util_now = hydro_dev_now = 0.0
     state = "SIN DATOS"
@@ -549,19 +637,13 @@ elif selection == "Informe MEM":
             return 0.0
         return float(df[col].mean() if agg == "mean" else df[col].sum())
 
-    def _sum_metric(data_dict, key):
-        dfx = calculate_periodicity(data_dict.get(key), "1M", "sum")
-        if dfx is None or dfx.empty:
-            return 0.0
-        return _safe_metric(dfx, get_value_col(dfx), "sum")
-
     price_cur = _safe_metric(market_cur, "Bolsa", "mean")
     price_prev = _safe_metric(market_prev, "Bolsa", "mean")
     pressure_prev = _safe_metric(market_prev, "PresionPct", "mean")
-    demand_cur = _sum_metric(cur, "DemaCome")
-    demand_prev = _sum_metric(prev, "DemaCome")
-    gen_cur = _sum_metric(cur, "Gene")
-    gen_prev = _sum_metric(prev, "Gene")
+    demand_cur = _aggregate_period_sum(cur.get("DemaCome"))
+    demand_prev = _aggregate_period_sum(prev.get("DemaCome"))
+    gen_cur = _aggregate_period_sum(cur.get("Gene"))
+    gen_prev = _aggregate_period_sum(prev.get("Gene"))
     util_prev = _safe_metric(hydro_prev, "UtilPct", "mean")
 
     st.markdown("### Resumen Ejecutivo")
@@ -589,6 +671,30 @@ elif selection == "Informe MEM":
     c2.metric("Precio Bolsa Prom.", f"${price_cur:,.1f}", f"{_pct_change(price_cur, price_prev):+.1f}%")
     c3.metric("Presión Mercado", f"{pressure_now:.1f}%", f"{_pct_change(pressure_now, pressure_prev):+.1f}%")
     c4.metric("Utilización Embalse", f"{util_now:.1f}%", f"{_pct_change(util_now, util_prev):+.1f}%")
+
+    st.markdown("### ¿Cómo se calcula cada valor?")
+    last_market_date = market_cur.iloc[-1]["Date"].strftime("%Y-%m-%d") if market_cur is not None and not market_cur.empty else end_str
+    st.markdown(
+        f"- **${price_cur:,.1f} (Precio Bolsa Prom.)**: promedio aritmético de los precios horarios de bolsa "
+        f"entre **{start_str}** y **{end_str}**. Se suma cada valor horario del periodo y se divide por el total de horas."
+    )
+    st.markdown(
+        f"- **{pressure_now:.1f}% (Presión Mercado)**: relación del último día disponible "
+        f"(**{last_market_date}**) entre Precio Bolsa y Precio de Escasez Superior: "
+        f"`(Bolsa / Escasez Superior) x 100`."
+    )
+    st.markdown(
+        f"- **{balance_cur:,.1f} GWh (Balance Generación-Demanda)**: diferencia acumulada del periodo "
+        f"entre generación total y demanda total: `(Σ Generación - Σ Demanda) / 1e6`."
+    )
+    st.markdown(
+        f"- **{util_now:.1f}% (Utilización Embalse)**: porcentaje de uso del embalse en el último día disponible: "
+        f"`(Volumen Útil / Capacidad Útil) x 100`."
+    )
+    st.markdown(
+        f"- **{hydro_dev_now:.1f}% (Desvío de Aportes)**: desviación porcentual de aportes frente a su media histórica: "
+        f"`((Aportes / Media Histórica) - 1) x 100`."
+    )
 
     st.markdown("<br>", unsafe_allow_html=True)
     _chart_price_vs_scarcity(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), cur.get("PrecEscaInf"))
