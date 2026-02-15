@@ -78,7 +78,7 @@ with st.sidebar:
     st.markdown("### PRINCIPALES")
     selection = st.radio(
         "Navegación",
-        ["Resumen", "Explorador"],
+        ["Resumen", "Riesgo de Escasez", "Hidrología", "Explorador"],
         label_visibility="collapsed",
     )
     st.markdown("---")
@@ -232,6 +232,118 @@ def _chart_hydro_contributions(df_apor, df_media):
         st.info("Cargando datos de Aportes...")
 
 
+@st.fragment
+def _chart_scarcity_risk(df_bolsa, df_escasez, df_esc_sup):
+    """Índice de presión del mercado vs precio de escasez superior."""
+    t = get_theme_config()
+    st.markdown("### Índice de Presión del Mercado")
+    col_ctrl, _ = st.columns([1, 4])
+    with col_ctrl:
+        period = render_chart_controls("period_risk", options=["1M", "1Y"])
+
+    df_b = calculate_periodicity(df_bolsa, period, "mean")
+    df_e = calculate_periodicity(df_escasez, period, "mean")
+    df_s = calculate_periodicity(df_esc_sup, period, "mean")
+
+    if any(x is None or x.empty for x in [df_b, df_e, df_s]):
+        st.info("Sin datos suficientes para construir el índice.")
+        return
+
+    bcol = get_value_col(df_b)
+    ecol = get_value_col(df_e)
+    scol = get_value_col(df_s)
+
+    risk = (
+        df_b[["Date", bcol]].rename(columns={bcol: "Bolsa"})
+        .merge(df_e[["Date", ecol]].rename(columns={ecol: "Escasez"}), on="Date", how="inner")
+        .merge(df_s[["Date", scol]].rename(columns={scol: "EscSup"}), on="Date", how="inner")
+    )
+    risk = risk[(risk["EscSup"] > 0) & (risk["Bolsa"] > 0)]
+    if risk.empty:
+        st.info("Sin datos válidos para el índice.")
+        return
+
+    risk["Indice"] = (risk["Bolsa"] / risk["EscSup"]) * 100.0
+    risk["Brecha"] = risk["Bolsa"] - risk["Escasez"]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=risk["Date"], y=risk["Indice"],
+        name="Presión (%)", mode="lines+markers",
+        line=dict(color=t["COLOR_ORANGE"], width=3),
+    ))
+    fig.add_trace(go.Scatter(
+        x=risk["Date"], y=[100.0] * len(risk),
+        name="Umbral 100%", mode="lines",
+        line=dict(color="#ef4444", dash="dash"),
+    ))
+    st.plotly_chart(style_fig(fig, "%"), use_container_width=True)
+
+    last = risk.iloc[-1]
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Presión Actual", f"{last['Indice']:.1f}%")
+    c2.metric("Brecha Bolsa-Escasez", f"${last['Brecha']:.1f}")
+    c3.metric("Precio Escasez Superior", f"${last['EscSup']:.1f}")
+
+
+@st.fragment
+def _chart_hydro_efficiency(df_cap, df_vol, df_apor, df_media):
+    """Uso de embalse y desviación de aportes frente a media histórica."""
+    t = get_theme_config()
+    st.markdown("### Eficiencia Hidrológica del Sistema")
+    col_ctrl, _ = st.columns([1, 4])
+    with col_ctrl:
+        period = render_chart_controls("period_hydro_eff", options=["1M", "1Y"])
+
+    df_c = calculate_periodicity(df_cap, period, "mean")
+    df_v = calculate_periodicity(df_vol, period, "mean")
+    df_a = calculate_periodicity(df_apor, period, "sum")
+    df_m = calculate_periodicity(df_media, period, "sum")
+
+    if any(x is None or x.empty for x in [df_c, df_v, df_a, df_m]):
+        st.info("Sin datos suficientes para el tablero hidrológico.")
+        return
+
+    ccol = get_value_col(df_c)
+    vcol = get_value_col(df_v)
+    acol = get_value_col(df_a)
+    mcol = get_value_col(df_m)
+
+    util = (
+        df_v[["Date", vcol]].rename(columns={vcol: "Vol"})
+        .merge(df_c[["Date", ccol]].rename(columns={ccol: "Cap"}), on="Date", how="inner")
+    )
+    util = util[util["Cap"] > 0]
+    util["Utilizacion"] = (util["Vol"] / util["Cap"]) * 100.0
+
+    aportes = (
+        df_a[["Date", acol]].rename(columns={acol: "Aportes"})
+        .merge(df_m[["Date", mcol]].rename(columns={mcol: "Media"}), on="Date", how="inner")
+    )
+    aportes = aportes[aportes["Media"] > 0]
+    aportes["Desvio"] = ((aportes["Aportes"] / aportes["Media"]) - 1.0) * 100.0
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=aportes["Date"], y=aportes["Desvio"],
+        name="Desvío Aportes vs Media (%)", marker_color=t["COLOR_BLUE"],
+        opacity=0.45,
+    ))
+    fig.add_trace(go.Scatter(
+        x=util["Date"], y=util["Utilizacion"],
+        name="Utilización de Embalse (%)", mode="lines+markers",
+        line=dict(color=t["COLOR_ORANGE"], width=3),
+    ))
+    st.plotly_chart(style_fig(fig, "%"), use_container_width=True)
+
+    if not util.empty and not aportes.empty:
+        u = util.iloc[-1]["Utilizacion"]
+        d = aportes.iloc[-1]["Desvio"]
+        c1, c2 = st.columns(2)
+        c1.metric("Utilización Embalse", f"{u:.1f}%")
+        c2.metric("Desvío de Aportes", f"{d:.1f}%")
+
+
 # ======================================================================
 # VIEWS
 # ======================================================================
@@ -330,6 +442,41 @@ if selection == "Resumen":
     st.markdown("<br>", unsafe_allow_html=True)
 
     _chart_hydro_contributions(df_apor, df_media)
+
+
+elif selection == "Riesgo de Escasez":
+    st.title("⚠️ Riesgo de Escasez")
+    st.caption("Monitor de presión de precios y cercanía a umbrales de escasez.")
+
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+
+    with st.spinner("Construyendo tablero de riesgo..."):
+        data = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
+
+    _chart_scarcity_risk(
+        data.get("PrecBolsNaci"),
+        data.get("PrecEsca"),
+        data.get("PrecEscaSup"),
+    )
+
+
+elif selection == "Hidrología":
+    st.title("💧 Hidrología del Sistema")
+    st.caption("Uso del embalse y comportamiento de aportes frente al promedio histórico.")
+
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+
+    with st.spinner("Construyendo tablero hidrológico..."):
+        data = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
+
+    _chart_hydro_efficiency(
+        data.get("CapaUtilDiarEner"),
+        data.get("VoluUtilDiarEner"),
+        data.get("AporEner"),
+        data.get("AporEnerMediHist"),
+    )
 
 
 elif selection == "Explorador":
