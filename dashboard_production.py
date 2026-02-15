@@ -185,7 +185,19 @@ def _call_ceo_consultant(api_key, user_question, report_context, history):
     if not res.ok:
         msg = data.get("error", {}).get("message", "Error al consultar Gemini.")
         raise RuntimeError(msg)
-    return data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+    candidates = data.get("candidates", [])
+    if not candidates:
+        pf = data.get("promptFeedback", {})
+        block_reason = pf.get("blockReason")
+        if block_reason:
+            raise RuntimeError(f"Gemini bloqueó la respuesta ({block_reason}). Ajusta la pregunta e intenta de nuevo.")
+        raise RuntimeError("Gemini no devolvió candidatos en la respuesta.")
+
+    parts = candidates[0].get("content", {}).get("parts", [])
+    answer = "".join(p.get("text", "") for p in parts if isinstance(p, dict)).strip()
+    if not answer:
+        raise RuntimeError("Gemini respondió sin contenido utilizable.")
+    return answer
 
 # ======================================================================
 # SIDEBAR
@@ -692,16 +704,17 @@ elif selection == "Informe del CEO":
       }
       .ceo-msg-row.user {justify-content: flex-end;}
       .ceo-avatar {
-        width: 34px;
-        height: 34px;
+        width: 40px;
+        height: 40px;
         border-radius: 999px;
-        flex: 0 0 34px;
+        flex: 0 0 40px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
+        font-size: 19px;
+        font-weight: 700;
       }
-      .ceo-avatar.bot {background: #dbeafe; color: #1e3a8a;}
+      .ceo-avatar.bot {background: #dbeafe; color: #1e40af;}
       .ceo-avatar.user {background: #fee2e2; color: #b91c1c;}
       .ceo-bubble {
         border-radius: 18px;
@@ -746,10 +759,12 @@ elif selection == "Informe del CEO":
       }
       div[data-testid="stForm"] div[data-testid="stButton"] > button {
         border-radius: 999px !important;
-        height: 42px !important;
-        width: 42px !important;
-        padding: 0 !important;
-        font-size: 1.05rem !important;
+        height: 44px !important;
+        width: 100% !important;
+        min-width: 92px !important;
+        padding: 0 12px !important;
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
         background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
         color: #f8fafc !important;
         border: 0 !important;
@@ -874,7 +889,7 @@ elif selection == "Informe del CEO":
                 f"""
                 <div class="ceo-msg-row user">
                   <div class="ceo-bubble user">{safe_text}</div>
-                  <div class="ceo-avatar user">☺</div>
+                  <div class="ceo-avatar user">👤</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -883,7 +898,7 @@ elif selection == "Informe del CEO":
             st.markdown(
                 f"""
                 <div class="ceo-msg-row">
-                  <div class="ceo-avatar bot">🤖</div>
+                  <div class="ceo-avatar bot">✦</div>
                   <div class="ceo-bubble bot">{safe_text}</div>
                 </div>
                 """,
@@ -893,7 +908,7 @@ elif selection == "Informe del CEO":
 
     st.markdown('<div class="ceo-input-shell">', unsafe_allow_html=True)
     with st.form("ceo_chat_form", clear_on_submit=True):
-        in_col, send_col = st.columns([10, 1])
+        in_col, send_col = st.columns([9, 2])
         with in_col:
             question = st.text_input(
                 "Pregunta al consultor MEM",
@@ -902,15 +917,18 @@ elif selection == "Informe del CEO":
                 label_visibility="collapsed",
             )
         with send_col:
-            send_clicked = st.form_submit_button("➤", use_container_width=True)
+            send_clicked = st.form_submit_button("Enviar", use_container_width=True)
     st.markdown(
         '<p class="ceo-prompt-note">Consulta solo temas del mercado de energía (MEM).</p>',
         unsafe_allow_html=True,
     )
     st.markdown("</div></div></div>", unsafe_allow_html=True)
 
+    question = (question or "").strip()
     if not send_clicked:
-        question = question if question else None
+        question = None
+    elif not question:
+        question = None
 
     if question:
         last_user = None
@@ -918,7 +936,7 @@ elif selection == "Informe del CEO":
             if m.get("role") == "user":
                 last_user = m.get("content", "").strip()
                 break
-        if last_user and last_user == question.strip():
+        if last_user and last_user == question:
             question = None
 
     if question:
