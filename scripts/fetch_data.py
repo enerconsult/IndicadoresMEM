@@ -7,6 +7,7 @@ in the data/ directory.  The Streamlit dashboard reads these files
 for near-instant load times.
 """
 
+import asyncio
 import json
 import datetime as dt
 import time
@@ -14,6 +15,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
+import requests
 
 # Fix: pandas 2.2+ deprecated 'M' frequency, pydataxm still uses it
 # Monkey-patch to convert 'M' to 'ME' in date_range and period_range
@@ -78,6 +80,89 @@ class _Client(ReadDB):
         self.connection = None
         self.request = ""
         self.inventario_metricas = inventory
+
+    def request_data(self, coleccion, metrica, start_date, end_date, filtros=None):
+        """
+        Local patch for pydataxm compatibility with pandas/numpy where
+        start_periods.values can be read-only.
+        """
+        if isinstance(filtros, list):
+            self.filtros = filtros
+        elif filtros is None:
+            self.filtros = []
+        else:
+            self.filtros = []
+
+        if coleccion not in self.inventario_metricas.MetricId.values:
+            return pd.DataFrame()
+        if metrica not in self.inventario_metricas.Entity.values:
+            return pd.DataFrame()
+
+        end_periods = pd.date_range(start_date, end_date, freq="M", inclusive="both")
+        if not pd.Timestamp(end_date).is_month_end:
+            end_periods = end_periods.append(pd.DatetimeIndex([end_date]))
+
+        start_periods = (end_periods - pd.offsets.MonthBegin(1)).to_list()
+        if (not pd.Timestamp(start_date).is_month_start) or (start_date == end_date):
+            start_periods[0] = pd.Timestamp(start_date)
+
+        list_periods = list(zip([str(x) for x in start_periods], end_periods.astype(str)))
+
+        period_dict = {
+            "HourlyEntities": {"period_base": "hourly", "endpoint": "HourlyEntities"},
+            "DailyEntities": {"period_base": "daily", "endpoint": "DailyEntities"},
+            "MonthlyEntities": {"period_base": "monthly", "endpoint": "MonthlyEntities"},
+            "AnnualEntities": {"period_base": "annual", "endpoint": "AnnualEntities"},
+        }
+
+        entity_type = self.inventario_metricas.query(
+            "MetricId == @coleccion and Entity == @metrica"
+        ).Type.values[0]
+
+        if entity_type in period_dict:
+            period_base = period_dict[entity_type]["period_base"]
+            endpoint = period_dict[entity_type]["endpoint"]
+            self.url = f"https://servapibi.xm.com.co/{period_base}"
+
+            body_request = {
+                "MetricId": coleccion,
+                "StartDate": None,
+                "EndDate": None,
+                "Entity": metrica,
+                "Filter": self.filtros,
+            }
+
+            list_bodies = []
+            for _start, _end in list_periods:
+                temp_body = body_request.copy()
+                temp_body["StartDate"] = _start
+                temp_body["EndDate"] = _end
+                list_bodies.append(temp_body)
+
+            try:
+                loop = asyncio.get_event_loop()
+                data = loop.run_until_complete(self.run_async(list_bodies, endpoint))
+            except RuntimeError:
+                data = asyncio.run(self.run_async(list_bodies, endpoint))
+        elif (
+            self.inventario_metricas.query("MetricId == @coleccion and Entity == @metrica")
+            .Type.values
+            == "ListsEntities"
+        ):
+            self.url = "https://servapibi.xm.com.co/lists"
+            self.request = {"MetricId": coleccion, "Entity": metrica}
+            self.connection = requests.post(self.url, json=self.request)
+            data_json = json.loads(self.connection.content)
+            data = pd.json_normalize(data_json["Items"], "ListEntities", "Date", sep="_")
+        else:
+            return pd.DataFrame()
+
+        for col in data.columns:
+            data[col] = pd.to_numeric(data[col], errors="ignore")
+        if "Date" in data.columns:
+            data["Date"] = pd.to_datetime(data["Date"], errors="ignore", format="%Y-%m-%d")
+
+        return data
 
 
 def _safe_copy(df):
