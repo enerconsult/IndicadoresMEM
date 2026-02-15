@@ -1181,8 +1181,27 @@ elif selection == "Informe del CEO":
     if "ceo_chart_request" in st.session_state and st.session_state.ceo_chart_request:
         ctx = st.session_state.ceo_chart_request.get("context", "general")
         
+        # --- Enforce 30-day window for these charts ---
+        end_d = dt.datetime.now()
+        start_d = end_d - dt.timedelta(days=30)
+        s_30 = start_d.strftime("%Y-%m-%d")
+        e_30 = end_d.strftime("%Y-%m-%d")
+
+        with st.spinner("Generando gráficos (últimos 30 días)..."):
+            data_30 = fetch_metrics_parallel(SUMMARY_METRICS, s_30, e_30)
+
+        # Override dataframes for plotting scope
+        df_bolsa   = data_30.get("PrecBolsNaci")
+        df_escasez = data_30.get("PrecEsca")
+        df_demanda = data_30.get("DemaCome")
+        df_gen     = data_30.get("Gene")
+        df_vol     = data_30.get("VoluUtilDiarEner")
+        df_cap     = data_30.get("CapaUtilDiarEner")
+        df_apor    = data_30.get("AporEner")
+        df_media   = data_30.get("AporEnerMediHist")
+
         st.markdown(f"### 📊 Análisis Gráfico: {ctx.capitalize()}")
-        st.markdown(f"<span style='color:{t['TEXT_SUB']}'>Gráficos generados automáticamente para enriquecer la respuesta.</span>", unsafe_allow_html=True)
+        st.markdown(f"<span style='color:{t['TEXT_SUB']}'>Visualización de tendencia reciente (últimos 30 días).</span>", unsafe_allow_html=True)
         
         g1, g2 = st.columns(2)
         
