@@ -60,6 +60,12 @@ def _classify_risk(pressure_pct, hydro_dev_pct, util_pct):
         return "ALERTA"
     return "NORMAL"
 
+
+def _pct_change(current, previous):
+    if previous in (None, 0):
+        return 0.0
+    return ((current - previous) / previous) * 100.0
+
 # ======================================================================
 # SIDEBAR
 # ======================================================================
@@ -86,7 +92,7 @@ with st.sidebar:
     st.markdown("### PRINCIPALES")
     selection = st.radio(
         "Navegación",
-        ["Resumen", "Centro Operativo MEM", "Riesgo Hidrológico y Escasez", "Explorador"],
+        ["Resumen", "Informe MEM", "Explorador"],
         label_visibility="collapsed",
     )
     st.markdown("---")
@@ -503,127 +509,138 @@ if selection == "Resumen":
     _chart_hydro_contributions(df_apor, df_media)
 
 
-elif selection == "Centro Operativo MEM":
-    t = get_theme_config()
-    st.title("🧭 Centro Operativo MEM")
-    st.caption("Vista operativa integrada para seguimiento diario de precios, balance energético y condición hidrológica.")
+elif selection == "Informe MEM":
+    st.title("📝 Informe MEM")
+    st.caption("Análisis automático del periodo seleccionado con semáforo y hallazgos operativos.")
     st.info(
-        "Este tablero prioriza indicadores críticos en cuatro capas: presión de precio, "
-        "balance Demanda/Generación, nivel de embalse y comportamiento de aportes."
+        "El informe compara el periodo seleccionado contra el periodo anterior de igual duración "
+        "y resume presión de precios, balance de energía y condición hidrológica."
     )
 
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
+    days = max((end_date - start_date).days + 1, 1)
+    prev_end = start_date - dt.timedelta(days=1)
+    prev_start = prev_end - dt.timedelta(days=days - 1)
 
-    with st.spinner("Construyendo centro operativo..."):
-        data = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
+    with st.spinner("Construyendo informe..."):
+        cur = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
+        prev = fetch_metrics_parallel(
+            SUMMARY_METRICS,
+            prev_start.strftime("%Y-%m-%d"),
+            prev_end.strftime("%Y-%m-%d"),
+        )
 
-    market = _build_market_risk_frame(data.get("PrecBolsNaci"), data.get("PrecEsca"), data.get("PrecEscaSup"), "1M")
-    hydro = _build_hydro_frame(data.get("CapaUtilDiarEner"), data.get("VoluUtilDiarEner"), data.get("AporEner"), data.get("AporEnerMediHist"), "1M")
+    market_cur = _build_market_risk_frame(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), "1M")
+    hydro_cur = _build_hydro_frame(cur.get("CapaUtilDiarEner"), cur.get("VoluUtilDiarEner"), cur.get("AporEner"), cur.get("AporEnerMediHist"), "1M")
+    market_prev = _build_market_risk_frame(prev.get("PrecBolsNaci"), prev.get("PrecEsca"), prev.get("PrecEscaSup"), "1M")
+    hydro_prev = _build_hydro_frame(prev.get("CapaUtilDiarEner"), prev.get("VoluUtilDiarEner"), prev.get("AporEner"), prev.get("AporEnerMediHist"), "1M")
 
-    if market is not None and hydro is not None:
-        m_last = market.iloc[-1]
-        h_last = hydro.iloc[-1]
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Precio Bolsa", f"${m_last['Bolsa']:.1f}")
-        c2.metric("Presión Mercado", f"{m_last['PresionPct']:.1f}%")
-        c3.metric("Utilización Embalse", f"{h_last['UtilPct']:.1f}%")
-        c4.metric("Desvío Aportes", f"{h_last['HydroDevPct']:.1f}%")
-    else:
-        st.warning("Datos incompletos para KPIs operativos.")
+    pressure_now = util_now = hydro_dev_now = 0.0
+    state = "SIN DATOS"
+    if market_cur is not None and hydro_cur is not None and not market_cur.empty and not hydro_cur.empty:
+        pressure_now = float(market_cur.iloc[-1]["PresionPct"])
+        util_now = float(hydro_cur.iloc[-1]["UtilPct"])
+        hydro_dev_now = float(hydro_cur.iloc[-1]["HydroDevPct"])
+        state = _classify_risk(pressure_now, hydro_dev_now, util_now)
+
+    def _safe_metric(df, col, agg="mean"):
+        if df is None or df.empty or col not in df.columns:
+            return 0.0
+        return float(df[col].mean() if agg == "mean" else df[col].sum())
+
+    def _sum_metric(data_dict, key):
+        dfx = calculate_periodicity(data_dict.get(key), "1M", "sum")
+        if dfx is None or dfx.empty:
+            return 0.0
+        return _safe_metric(dfx, get_value_col(dfx), "sum")
+
+    price_cur = _safe_metric(market_cur, "Bolsa", "mean")
+    price_prev = _safe_metric(market_prev, "Bolsa", "mean")
+    pressure_prev = _safe_metric(market_prev, "PresionPct", "mean")
+    demand_cur = _sum_metric(cur, "DemaCome")
+    demand_prev = _sum_metric(prev, "DemaCome")
+    gen_cur = _sum_metric(cur, "Gene")
+    gen_prev = _sum_metric(prev, "Gene")
+    util_prev = _safe_metric(hydro_prev, "UtilPct", "mean")
+
+    st.markdown("### Resumen Ejecutivo")
+    st.markdown(f"- Estado general del periodo: **{state}**.")
+    st.markdown(
+        f"- Precio bolsa promedio: **${price_cur:,.1f}** "
+        f"({ _pct_change(price_cur, price_prev):+.1f}% vs periodo previo)."
+    )
+    st.markdown(
+        f"- Presión de mercado actual: **{pressure_now:.1f}%** "
+        f"({ _pct_change(pressure_now, pressure_prev):+.1f}% vs periodo previo)."
+    )
+    balance_cur = (gen_cur - demand_cur) / 1e6
+    balance_prev = (gen_prev - demand_prev) / 1e6
+    st.markdown(
+        f"- Balance generación-demanda: **{balance_cur:,.1f} GWh** "
+        f"({ _pct_change(balance_cur, balance_prev if balance_prev != 0 else 1):+.1f}% vs previo)."
+    )
+    st.markdown(
+        f"- Utilización de embalse: **{util_now:.1f}%** y desvío de aportes: **{hydro_dev_now:.1f}%**."
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Semáforo", state)
+    c2.metric("Precio Bolsa Prom.", f"${price_cur:,.1f}", f"{_pct_change(price_cur, price_prev):+.1f}%")
+    c3.metric("Presión Mercado", f"{pressure_now:.1f}%", f"{_pct_change(pressure_now, pressure_prev):+.1f}%")
+    c4.metric("Utilización Embalse", f"{util_now:.1f}%", f"{_pct_change(util_now, util_prev):+.1f}%")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    _chart_price_vs_scarcity(data.get("PrecBolsNaci"), data.get("PrecEsca"), data.get("PrecEscaSup"), data.get("PrecEscaInf"))
+    _chart_price_vs_scarcity(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), cur.get("PrecEscaInf"))
     st.markdown("<br>", unsafe_allow_html=True)
-    _chart_demand_vs_gen(data.get("DemaCome"), data.get("Gene"))
+    _chart_demand_vs_gen(cur.get("DemaCome"), cur.get("Gene"))
     st.markdown("<br>", unsafe_allow_html=True)
     _chart_hydro_efficiency(
-        data.get("CapaUtilDiarEner"),
-        data.get("VoluUtilDiarEner"),
-        data.get("AporEner"),
-        data.get("AporEnerMediHist"),
+        cur.get("CapaUtilDiarEner"),
+        cur.get("VoluUtilDiarEner"),
+        cur.get("AporEner"),
+        cur.get("AporEnerMediHist"),
     )
 
+    st.markdown("### Hallazgos Automáticos")
+    findings = []
+    if pressure_now > 100:
+        findings.append("Presión de mercado por encima de 100%: tensión crítica de precio.")
+    elif pressure_now >= 90:
+        findings.append("Presión de mercado en banda de alerta (90%-100%).")
+    if util_now > 80:
+        findings.append("Utilización de embalse superior a 80%: holgura operativa reducida.")
+    if hydro_dev_now < -15:
+        findings.append("Aportes hídricos con desvío menor a -15%: riesgo hidrológico elevado.")
+    if balance_cur < 0:
+        findings.append("Balance neto generación-demanda negativo en el periodo.")
+    if not findings:
+        findings.append("No se detectaron eventos críticos con las reglas actuales para este periodo.")
+    for item in findings:
+        st.markdown(f"- {item}")
 
-elif selection == "Riesgo Hidrológico y Escasez":
-    t = get_theme_config()
-    st.title("⚠️ Riesgo Hidrológico y Escasez")
-    st.caption("Detección temprana de tensión de precios y vulnerabilidad hidrológica del sistema.")
-    st.info(
-        "Semáforo operativo: CRITICO si Presión > 100% y Desvío de Aportes < -15%; "
-        "ALERTA si Presión entre 90-100% o Utilización de embalse > 80%."
-    )
-
-    start_str = start_date.strftime("%Y-%m-%d")
-    end_str = end_date.strftime("%Y-%m-%d")
-    with st.spinner("Calculando riesgo integrado..."):
-        data = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
-
-    market = _build_market_risk_frame(data.get("PrecBolsNaci"), data.get("PrecEsca"), data.get("PrecEscaSup"), "1Y")
-    hydro = _build_hydro_frame(data.get("CapaUtilDiarEner"), data.get("VoluUtilDiarEner"), data.get("AporEner"), data.get("AporEnerMediHist"), "1Y")
-
-    if market is None or hydro is None:
-        st.warning("No hay datos suficientes para construir el tablero de riesgo.")
-    else:
-        risk = market[["Date", "PresionPct", "Brecha"]].merge(
-            hydro[["Date", "UtilPct", "HydroDevPct"]],
+    if market_cur is not None and hydro_cur is not None:
+        risk_tbl = market_cur[["Date", "PresionPct", "Brecha"]].merge(
+            hydro_cur[["Date", "UtilPct", "HydroDevPct"]],
             on="Date",
             how="inner",
         ).sort_values("Date")
-
-        if risk.empty:
-            st.warning("No hay cruce de fechas suficiente para el análisis de riesgo.")
-        else:
-            risk["Estado"] = risk.apply(
+        if not risk_tbl.empty:
+            risk_tbl["Estado"] = risk_tbl.apply(
                 lambda r: _classify_risk(r["PresionPct"], r["HydroDevPct"], r["UtilPct"]),
                 axis=1,
             )
-
-            fig1 = go.Figure()
-            fig1.add_trace(go.Scatter(
-                x=risk["Date"], y=risk["PresionPct"],
-                name="Presión (%)", mode="lines+markers",
-                line=dict(color=t["COLOR_ORANGE"], width=3),
-            ))
-            fig1.add_trace(go.Scatter(
-                x=risk["Date"], y=[100.0] * len(risk),
-                name="Umbral 100%", mode="lines",
-                line=dict(color="#ef4444", dash="dash"),
-            ))
-            st.plotly_chart(style_fig(fig1, "%"), use_container_width=True)
-
-            fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(
-                x=risk["Date"], y=risk["Brecha"],
-                name="Brecha Bolsa-Escasez", mode="lines+markers",
-                line=dict(color=t["COLOR_BLUE"], width=3),
-            ))
-            fig2.add_trace(go.Scatter(
-                x=risk["Date"], y=risk["HydroDevPct"],
-                name="Desvío Aportes (%)", mode="lines+markers",
-                line=dict(color="#22c55e", width=2, dash="dot"),
-            ))
-            st.plotly_chart(style_fig(fig2, "COP / %"), use_container_width=True)
-
-            latest = risk.iloc[-1]
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Estado Actual", latest["Estado"])
-            c2.metric("Presión Mercado", f"{latest['PresionPct']:.1f}%")
-            c3.metric("Utilización Embalse", f"{latest['UtilPct']:.1f}%")
-            c4.metric("Desvío Aportes", f"{latest['HydroDevPct']:.1f}%")
-
-            st.markdown("#### Diagnóstico (últimos 30 días)")
-            tbl = risk.tail(30).copy()
-            tbl["Date"] = tbl["Date"].dt.strftime("%Y-%m-%d")
-            tbl = tbl.rename(columns={
+            out = risk_tbl.tail(30).copy()
+            out["Date"] = out["Date"].dt.strftime("%Y-%m-%d")
+            out = out.rename(columns={
                 "Date": "Fecha",
                 "PresionPct": "Presión (%)",
                 "Brecha": "Brecha Bolsa-Escasez",
                 "UtilPct": "Utilización Embalse (%)",
                 "HydroDevPct": "Desvío Aportes (%)",
-                "Estado": "Estado",
             })
-            st.dataframe(tbl, use_container_width=True, hide_index=True)
+            st.markdown("### Evidencias del Periodo")
+            st.dataframe(out, use_container_width=True, hide_index=True)
 
 
 elif selection == "Explorador":
