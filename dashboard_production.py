@@ -656,12 +656,58 @@ elif selection == "Informe del CEO":
     <style>
       .ceo-wrap {max-width: 980px; margin: 0 auto;}
       .ceo-hero {
-        background: linear-gradient(135deg, #0f172a, #1e3a8a 60%, #0f766e);
-        color: #f8fafc; border-radius: 18px; padding: 18px 22px; margin-bottom: 16px;
+        background: linear-gradient(120deg, #0f172a 0%, #1d4ed8 52%, #0d9488 100%);
+        color: #f8fafc; border-radius: 20px; padding: 20px 24px; margin-bottom: 14px;
+        border: 1px solid rgba(56,189,248,0.35);
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.45);
+      }
+      .ceo-hero h2 {margin: 0; font-size: 1.35rem; font-weight: 900; letter-spacing: 0.01em;}
+      .ceo-hero p {margin: 8px 0 0; color: #dbeafe; font-size: 0.92rem;}
+      .ceo-chip-row {display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; margin: 12px 0 14px;}
+      .ceo-chip {
+        border-radius: 14px; padding: 10px 12px; background: rgba(2,6,23,0.6);
         border: 1px solid rgba(148,163,184,0.25);
       }
-      .ceo-hero h2 {margin: 0; font-size: 1.25rem; font-weight: 800;}
-      .ceo-hero p {margin: 6px 0 0; color: #cbd5e1; font-size: 0.9rem;}
+      .ceo-chip-k {font-size: 11px; color:#93c5fd; text-transform: uppercase; letter-spacing: .08em;}
+      .ceo-chip-v {font-size: 18px; color:#f8fafc; font-weight: 800; margin-top: 2px;}
+      .ceo-box {
+        background: rgba(15, 23, 42, 0.65);
+        border: 1px solid rgba(148,163,184,0.22);
+        border-radius: 18px;
+        padding: 14px;
+      }
+      div[data-testid="stTextInput"] input {
+        background: #0b1220 !important;
+        border: 1px solid #334155 !important;
+        color: #e2e8f0 !important;
+      }
+      div[data-testid="stTextInput"] input::placeholder {
+        color: #94a3b8 !important;
+      }
+      div[data-testid="stExpander"] {
+        border: 1px solid rgba(148,163,184,0.28) !important;
+        border-radius: 14px !important;
+        background: rgba(15,23,42,0.48) !important;
+      }
+      div[data-testid="stChatInput"] textarea {
+        background: #0b1220 !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+        border-radius: 14px !important;
+      }
+      div[data-testid="stChatMessage"] {
+        border-radius: 14px !important;
+      }
+      div[data-testid="stButton"] > button {
+        background: linear-gradient(135deg, #1d4ed8, #0d9488) !important;
+        color: #f8fafc !important;
+        border: 0 !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+      }
+      @media (max-width: 840px) {
+        .ceo-chip-row {grid-template-columns: repeat(2, minmax(0,1fr));}
+      }
     </style>
     """, unsafe_allow_html=True)
 
@@ -707,6 +753,16 @@ elif selection == "Informe del CEO":
     if not findings:
         findings.append("Sin alertas críticas para el periodo")
 
+    chips_html = f"""
+    <div class="ceo-chip-row">
+      <div class="ceo-chip"><div class="ceo-chip-k">Estado</div><div class="ceo-chip-v">{state}</div></div>
+      <div class="ceo-chip"><div class="ceo-chip-k">Precio Prom.</div><div class="ceo-chip-v">${price_cur:,.1f}</div></div>
+      <div class="ceo-chip"><div class="ceo-chip-k">Presión</div><div class="ceo-chip-v">{pressure_now:.1f}%</div></div>
+      <div class="ceo-chip"><div class="ceo-chip-k">Balance</div><div class="ceo-chip-v">{balance_cur:,.1f} GWh</div></div>
+    </div>
+    """
+    st.markdown(chips_html, unsafe_allow_html=True)
+
     report_context = (
         f"Periodo analizado: {start_str} a {end_str}\n"
         f"Estado general: {state}\n"
@@ -728,6 +784,7 @@ elif selection == "Informe del CEO":
             }
         ]
 
+    st.markdown('<div class="ceo-box">', unsafe_allow_html=True)
     with st.expander("Configuración de API Key (Gemini)", expanded=(not bool(st.session_state.ceo_api_key))):
         key_input = st.text_input(
             "Gemini API Key",
@@ -746,6 +803,7 @@ elif selection == "Informe del CEO":
         if c_key_2.button("Limpiar API Key", key="clear_ceo_key"):
             st.session_state.ceo_api_key = ""
             st.warning("API Key eliminada de la sesión.")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     quick_col_1, quick_col_2, quick_col_3 = st.columns(3)
     if quick_col_1.button("¿Cuál es el principal riesgo del periodo?", use_container_width=True):
