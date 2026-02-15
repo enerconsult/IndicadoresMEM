@@ -114,22 +114,23 @@ def _add_chart_stats(fig, df, value_col, label, color):
     same_point = (vmax["Date"] == vmin["Date"]) and (float(vmax[value_col]) == float(vmin[value_col]))
     fig.add_trace(go.Scatter(
         x=[vmax["Date"]], y=[vmax[value_col]],
-        name=f"Máx {label}", mode="markers+text",
-        text=[f"Máx {vmax[value_col]:.1f}"], textposition="top center",
-        marker=dict(color=color, size=10, symbol="triangle-up"),
+        name=f"Máx {label}", mode="markers",
+        marker=dict(color=color, size=9, symbol="diamond"),
+        hovertemplate=f"Máx {label}: "+"%{y:.2f}<br>%{x|%Y-%m-%d}<extra></extra>",
     ))
     if not same_point:
         fig.add_trace(go.Scatter(
             x=[vmin["Date"]], y=[vmin[value_col]],
-            name=f"Mín {label}", mode="markers+text",
-            text=[f"Mín {vmin[value_col]:.1f}"], textposition="bottom center",
-            marker=dict(color=color, size=10, symbol="triangle-down"),
+            name=f"Mín {label}", mode="markers",
+            marker=dict(color=color, size=9, symbol="diamond-open"),
+            hovertemplate=f"Mín {label}: "+"%{y:.2f}<br>%{x|%Y-%m-%d}<extra></extra>",
         ))
     fig.add_trace(go.Scatter(
         x=data["Date"], y=[vavg] * len(data),
         name=f"Prom {label}", mode="lines",
         line=dict(color=color, width=1.5, dash="dot"),
-        opacity=0.8,
+        opacity=0.45,
+        hovertemplate=f"Prom {label}: {vavg:.2f}<extra></extra>",
     ))
 
 # ======================================================================
