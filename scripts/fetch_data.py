@@ -106,7 +106,12 @@ class _Client(ReadDB):
         if (not pd.Timestamp(start_date).is_month_start) or (start_date == end_date):
             start_periods[0] = pd.Timestamp(start_date)
 
-        list_periods = list(zip([str(x) for x in start_periods], end_periods.astype(str)))
+        list_periods = list(
+            zip(
+                [pd.Timestamp(x).date().isoformat() for x in start_periods],
+                [pd.Timestamp(x).date().isoformat() for x in end_periods],
+            )
+        )
 
         period_dict = {
             "HourlyEntities": {"period_base": "hourly", "endpoint": "HourlyEntities"},
