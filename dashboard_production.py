@@ -4,6 +4,7 @@ import plotly.express as px
 import pandas as pd
 import datetime as dt
 import requests
+import html as pyhtml
 
 from utils.style import init_theme, toggle_theme, get_theme_config, load_css
 from utils.data import (
@@ -676,6 +677,68 @@ elif selection == "Informe del CEO":
         border-radius: 18px;
         padding: 14px;
       }
+      .ceo-chat-shell {
+        margin-top: 14px;
+        border-radius: 22px;
+        border: 1px solid rgba(100,116,139,0.28);
+        background: rgba(2,6,23,0.55);
+        overflow: hidden;
+        box-shadow: 0 16px 36px rgba(2,6,23,0.45);
+      }
+      .ceo-chat-head {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        color: #f8fafc;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .ceo-chat-title {font-weight: 800; font-size: 1.1rem; margin: 0;}
+      .ceo-chat-sub {font-size: .85rem; color: #dbeafe; margin: 2px 0 0;}
+      .ceo-chat-body {
+        background: #eef2f7;
+        min-height: 420px;
+        max-height: 520px;
+        overflow-y: auto;
+        padding: 16px;
+      }
+      .ceo-msg-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 12px;
+        align-items: flex-start;
+      }
+      .ceo-msg-row.user {justify-content: flex-end;}
+      .ceo-avatar {
+        width: 34px; height: 34px; border-radius: 999px; flex: 0 0 34px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 15px;
+      }
+      .ceo-avatar.bot {background: #dbeafe; color: #1e3a8a;}
+      .ceo-avatar.user {background: #fee2e2; color: #b91c1c;}
+      .ceo-bubble {
+        border-radius: 16px;
+        padding: 12px 14px;
+        max-width: 84%;
+        line-height: 1.45;
+        font-size: 1rem;
+      }
+      .ceo-bubble.bot {
+        background: #ffffff;
+        border: 1px solid #d1d5db;
+        color: #334155;
+      }
+      .ceo-bubble.user {
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        color: #374151;
+      }
+      .ceo-input-shell {
+        background: #f8fafc;
+        border-top: 1px solid #cbd5e1;
+        padding: 10px 12px;
+      }
+      .ceo-prompt-note {font-size: .8rem; color: #94a3b8; margin: 8px 2px 0;}
       div[data-testid="stTextInput"] input {
         background: #0b1220 !important;
         border: 1px solid #334155 !important;
@@ -704,6 +767,10 @@ elif selection == "Informe del CEO":
         border: 0 !important;
         border-radius: 12px !important;
         font-weight: 700 !important;
+      }
+      div[data-testid="stForm"] div[data-testid="stTextInput"] input {
+        background: #0b1220 !important;
+        border-radius: 999px !important;
       }
       @media (max-width: 840px) {
         .ceo-chip-row {grid-template-columns: repeat(2, minmax(0,1fr));}
@@ -752,16 +819,6 @@ elif selection == "Informe del CEO":
         findings.append("Balance neto generación-demanda negativo")
     if not findings:
         findings.append("Sin alertas críticas para el periodo")
-
-    chips_html = f"""
-    <div class="ceo-chip-row">
-      <div class="ceo-chip"><div class="ceo-chip-k">Estado</div><div class="ceo-chip-v">{state}</div></div>
-      <div class="ceo-chip"><div class="ceo-chip-k">Precio Prom.</div><div class="ceo-chip-v">${price_cur:,.1f}</div></div>
-      <div class="ceo-chip"><div class="ceo-chip-k">Presión</div><div class="ceo-chip-v">{pressure_now:.1f}%</div></div>
-      <div class="ceo-chip"><div class="ceo-chip-k">Balance</div><div class="ceo-chip-v">{balance_cur:,.1f} GWh</div></div>
-    </div>
-    """
-    st.markdown(chips_html, unsafe_allow_html=True)
 
     report_context = (
         f"Periodo analizado: {start_str} a {end_str}\n"
@@ -813,19 +870,66 @@ elif selection == "Informe del CEO":
     if quick_col_3.button("Proyección 7 días", use_container_width=True):
         st.session_state.ceo_quick_q = "Dame una lectura ejecutiva para los próximos 7 días, con riesgos y recomendaciones."
 
+    st.markdown("""
+    <div class="ceo-chat-shell">
+      <div class="ceo-chat-head">
+        <div>
+          <p class="ceo-chat-title">Consultor MEM AI</p>
+          <p class="ceo-chat-sub">Experto en mercado eléctrico colombiano</p>
+        </div>
+        <div style="font-size:1.15rem;">✦</div>
+      </div>
+      <div class="ceo-chat-body">
+    """, unsafe_allow_html=True)
     for msg in st.session_state.ceo_chat_messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+        role = msg.get("role", "assistant")
+        safe_text = pyhtml.escape(msg.get("content", "")).replace("\n", "<br>")
+        if role == "user":
+            st.markdown(
+                f"""
+                <div class="ceo-msg-row user">
+                  <div class="ceo-bubble user">{safe_text}</div>
+                  <div class="ceo-avatar user">☺</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+                <div class="ceo-msg-row">
+                  <div class="ceo-avatar bot">🤖</div>
+                  <div class="ceo-bubble bot">{safe_text}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    question = st.chat_input("Pregunta al consultor MEM...")
+    with st.container():
+        st.markdown('<div class="ceo-input-shell">', unsafe_allow_html=True)
+        with st.form("ceo_chat_form", clear_on_submit=True):
+            in_col, send_col = st.columns([10, 1])
+            with in_col:
+                question = st.text_input(
+                    "Pregunta al consultor MEM",
+                    value="",
+                    placeholder="Escribe tu consulta ejecutiva del MEM...",
+                    label_visibility="collapsed",
+                )
+            with send_col:
+                send_clicked = st.form_submit_button("➤", use_container_width=True)
+        st.markdown('<p class="ceo-prompt-note">Tip: pregunta por riesgos, precio, escasez, embalses o decisiones ejecutivas.</p>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    if not send_clicked:
+        question = question if question else None
     if not question and "ceo_quick_q" in st.session_state and st.session_state.ceo_quick_q:
         question = st.session_state.ceo_quick_q
         st.session_state.ceo_quick_q = ""
 
     if question:
         st.session_state.ceo_chat_messages.append({"role": "user", "content": question})
-        with st.chat_message("user"):
-            st.markdown(question)
 
         if not st.session_state.ceo_api_key:
             answer = "Primero configura tu API Key de Gemini para activar el consultor."
@@ -844,10 +948,9 @@ elif selection == "Informe del CEO":
                 answer = f"No pude completar la consulta: {e}"
 
         st.session_state.ceo_chat_messages.append({"role": "assistant", "content": answer})
-        with st.chat_message("assistant"):
-            st.markdown(answer)
+        st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
 
 elif selection == "Explorador":
