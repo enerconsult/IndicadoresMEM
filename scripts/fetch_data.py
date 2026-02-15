@@ -107,13 +107,20 @@ def fetch_all():
                 df = client.request_data(metric_id, entity, start_date, end_date)
                 
                 if df is not None and not df.empty:
-                    # Crear nuevo DataFrame para evitar "read-only" error en GitHub Actions
-                    # Algunas versiones de pandas/pydataxm devuelven DataFrames de solo lectura
-                    df = pd.DataFrame(df.values, columns=df.columns)
+                    # Solucionar "read-only" error: crear DataFrame nuevo con copia profunda
+                    import numpy as np
+                    data_dict = {}
+                    for col in df.columns:
+                        val = df[col].values
+                        if isinstance(val, np.ndarray) and not val.flags.writeable:
+                            val = val.copy()
+                        data_dict[col] = val
+                    df = pd.DataFrame(data_dict)
+                    
                     if "Date" in df.columns:
-                        df.loc[:, "Date"] = pd.to_datetime(df["Date"])
+                        df["Date"] = pd.to_datetime(df["Date"])
                     if "Entity" not in df.columns:
-                        df.loc[:, "Entity"] = entity
+                        df["Entity"] = entity
                     path = DATA_DIR / f"{metric_id}.parquet"
                     df.to_parquet(path, index=False)
                     
