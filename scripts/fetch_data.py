@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import aiohttp
 import pandas as pd
 import requests
 
@@ -64,6 +65,7 @@ MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 5
 CONCURRENT_WORKERS = 2  # Conservative to avoid overwhelming XM server
 REQUEST_DELAY = 2  # Seconds between requests to same client
+REQUEST_TIMEOUT_SECONDS = 45
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +82,20 @@ class _Client(ReadDB):
         self.connection = None
         self.request = ""
         self.inventario_metricas = inventory
+
+    async def async_get_df(self, body, endpoint):
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(self.url, json=body, headers={"Connection": "close"}) as response:
+                if response.status != 200:
+                    text = (await response.text())[:200]
+                    raise RuntimeError(f"HTTP {response.status} from XM: {text}")
+                ctype = response.headers.get("content-type", "").lower()
+                if "application/json" not in ctype:
+                    text = (await response.text())[:200]
+                    raise RuntimeError(f"Unexpected content-type '{ctype}': {text}")
+                load = await response.json()
+                return pd.json_normalize(load["Items"], endpoint, "Date", sep="_")
 
     def request_data(self, coleccion, metrica, start_date, end_date, filtros=None):
         """

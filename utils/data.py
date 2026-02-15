@@ -2,6 +2,7 @@ import asyncio
 import json
 from pathlib import Path
 
+import aiohttp
 import streamlit as st
 import pandas as pd
 import datetime as dt
@@ -13,6 +14,7 @@ from pydataxm.pydataxm import ReadDB
 # Parquet data directory  (populated by scripts/fetch_data.py via GH Actions)
 # ---------------------------------------------------------------------------
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+REQUEST_TIMEOUT_SECONDS = 45
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +32,20 @@ class _ThreadSafeXMClient(ReadDB):
         self.connection = None
         self.request = ""
         self.inventario_metricas = inventory
+
+    async def async_get_df(self, body, endpoint):
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(self.url, json=body, headers={"Connection": "close"}) as response:
+                if response.status != 200:
+                    text = (await response.text())[:200]
+                    raise RuntimeError(f"HTTP {response.status} from XM: {text}")
+                ctype = response.headers.get("content-type", "").lower()
+                if "application/json" not in ctype:
+                    text = (await response.text())[:200]
+                    raise RuntimeError(f"Unexpected content-type '{ctype}': {text}")
+                load = await response.json()
+                return pd.json_normalize(load["Items"], endpoint, "Date", sep="_")
 
     def request_data(self, coleccion, metrica, start_date, end_date, filtros=None):
         if isinstance(filtros, list):

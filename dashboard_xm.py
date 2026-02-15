@@ -1,5 +1,6 @@
 import asyncio
 import json
+import aiohttp
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -7,6 +8,7 @@ import plotly.graph_objects as go
 import requests
 from pydataxm.pydataxm import ReadDB
 import datetime as dt
+REQUEST_TIMEOUT_SECONDS = 45
 
 # --- CONFIGURATION ---
 st.set_page_config(
@@ -260,6 +262,20 @@ class _CompatReadDB(ReadDB):
         if "Date" in data.columns:
             data["Date"] = pd.to_datetime(data["Date"], errors="ignore", format="%Y-%m-%d")
         return data
+
+    async def async_get_df(self, body, endpoint):
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(self.url, json=body, headers={"Connection": "close"}) as response:
+                if response.status != 200:
+                    text = (await response.text())[:200]
+                    raise RuntimeError(f"HTTP {response.status} from XM: {text}")
+                ctype = response.headers.get("content-type", "").lower()
+                if "application/json" not in ctype:
+                    text = (await response.text())[:200]
+                    raise RuntimeError(f"Unexpected content-type '{ctype}': {text}")
+                load = await response.json()
+                return pd.json_normalize(load["Items"], endpoint, "Date", sep="_")
 
 
 @st.cache_resource
