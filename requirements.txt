@@ -1,5 +1,6 @@
-streamlit
-pandas
-plotly
+streamlit>=1.37.0
+pandas>=2.0.0
+plotly>=5.18.0
+pyarrow>=14.0.0
 pydataxm
 requests

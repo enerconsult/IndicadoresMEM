@@ -1,320 +1,421 @@
+import json
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pydataxm.pydataxm import ReadDB
 
+# ---------------------------------------------------------------------------
+# Parquet data directory  (populated by scripts/fetch_data.py via GH Actions)
+# ---------------------------------------------------------------------------
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
+# ---------------------------------------------------------------------------
+# Thread-safe XM client (shares metric inventory to avoid redundant API calls)
+# ---------------------------------------------------------------------------
+class _ThreadSafeXMClient(ReadDB):
+    """Lightweight ReadDB that reuses the metric inventory from the main instance."""
+
+    def __new__(cls, *args, **kwargs):
+        # Bypass ReadDB.__new__ which may call all_variables()
+        return super(ReadDB, cls).__new__(cls)
+
+    def __init__(self, inventory, url):
+        self.url = url
+        self.connection = None
+        self.request = ""
+        self.inventario_metricas = inventory
+
+
+# ---------------------------------------------------------------------------
+# Singleton API instance (cached across Streamlit reruns)
+# ---------------------------------------------------------------------------
 @st.cache_resource
 def get_api():
     return ReadDB()
 
-@st.cache_data(ttl=3600) 
-def fetch_metric_data(metric_id, entity, start_date, end_date):
-    """
-    Fetches metric data from API with error handling and chunking.
-    Splits requests > 365 days to avoid API limits.
-    """
-    api = get_api()
-    
-    # Initialize list to hold dataframes
-    all_dfs = []
-    
-    # Ensure inputs are date objects
-    if isinstance(start_date, dt.datetime): start_date = start_date.date()
-    if isinstance(end_date, dt.datetime): end_date = end_date.date()
-    
-    curr_start = start_date
-    
-    try:
-        while curr_start <= end_date:
-            # Define chunk end (max 30 days to avoid timeouts)
-            chunk_end = min(end_date, curr_start + dt.timedelta(days=30))
-            
-            # Fetch chunk with simple retry logic
-            df_chunk = None
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    df_chunk = api.request_data(metric_id, entity, curr_start, chunk_end)
-                    break # Success
-                except Exception as e:
-                    if attempt == max_retries - 1:
-                        print(f"Failed to fetch {metric_id} after {max_retries} attempts: {e}")
-                    import time
-                    time.sleep(1) # Wait 1s before retry
-            
-            if df_chunk is not None and not df_chunk.empty:
-                all_dfs.append(df_chunk)
-            
-            # Move to next day
-            curr_start = chunk_end + dt.timedelta(days=1)
-            
-        if not all_dfs:
-            return None
-            
-        # Concatenate all chunks
-        df_final = pd.concat(all_dfs, ignore_index=True)
-        
-        # FIX: Ensure Entity column exists (Streamlit Cloud issue)
-        if 'Entity' not in df_final.columns:
-            df_final['Entity'] = entity
 
-        # Deduplicate just in case (overlapping boundaries?)
-        if 'Date' in df_final.columns:
-            df_final['Date'] = pd.to_datetime(df_final['Date'])
-            df_final = df_final.drop_duplicates(subset=['Date', 'Entity'], keep='last')
-            df_final = df_final.sort_values('Date')
-            
-        return df_final
-
-    except Exception as e:
-        st.error(f"Error fetching {metric_id}: {e}")
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+def _normalize_df(df, entity):
+    """Standard post-processing for any fetched DataFrame."""
+    if df is None or df.empty:
         return None
-
-@st.cache_data(ttl=86400) 
-def get_catalog():
-    api = get_api()
-    try:
-        return api.get_collections()
-    except:
-        return pd.DataFrame()
-
-def get_chart_val_col(df):
-    """Helper to find the value column in a dataframe."""
-    if df is None: return None
-    if 'Value' in df.columns: return 'Value'
-    if 'DailyValue' in df.columns: return 'DailyValue'
-    
-    # Fallback: Exclude Date/Id/Metadata
-    v = [c for c in df.columns if c not in ['Date', 'Id', 'Values_code', 'Entity', 'MetricId', 'Name', 'To']]
-    return v[0] if v else (df.columns[-1] if not df.empty else None)
-
-def calculate_periodicity(df, period, agg_func='sum'):
-    """
-    Aggregates dataframe based on periodicity:
-    1D: Last available day (hourly if available)
-    1M: Last 30 days or Last Month (Daily aggregation)
-    1Y: Last 365 days or Last Year (Monthly aggregation)
-    """
-    if df is None or df.empty: return df
-    
-    if 'Date' not in df.columns: return df
-    
-    # Ensure Date is datetime
-    if not pd.api.types.is_datetime64_any_dtype(df['Date']):
-        df['Date'] = pd.to_datetime(df['Date'])
-    
-    # Identify hourly columns
-    hour_cols = [c for c in df.columns if 'Hour' in c]
-    
-    # Value columns (exclude metadata)
-    val_cols = [c for c in df.columns if c not in ['Date', 'Id', 'Values_code', 'Entity', 'MetricId', 'Name', 'To'] and c not in hour_cols]
-    
-    # 1D: Return last 24h
-    if period == '1D':
-        last_date = df['Date'].max().date()
-        df_filtered = df[df['Date'].dt.date == last_date].copy()
-        
-        if hour_cols:
-            df_melted = df_filtered.melt(id_vars=['Date'], value_vars=hour_cols, var_name='Hour', value_name='Value')
-            df_melted['HourNum'] = df_melted['Hour'].str.extract(r'(\d+)').astype(int) - 1
-            df_melted = df_melted.sort_values('HourNum')
-            # Construct datetime for x-axis
-            df_melted['DateTime'] = df_melted.apply(lambda x: x['Date'] + pd.Timedelta(hours=x['HourNum']), axis=1)
-            return df_melted[['DateTime', 'Value']].rename(columns={'DateTime': 'Date'})
-            
-        return df_filtered
-    
-    # 1M: Daily Aggregation
-    elif period == '1M':
-        last_date = df['Date'].max()
-        start_date = last_date - dt.timedelta(days=30)
-        df_filtered = df[df['Date'] >= start_date].copy()
-        
-        if hour_cols:
-            if agg_func == 'sum':
-                df_filtered['DailyValue'] = df_filtered[hour_cols].sum(axis=1)
-            else: 
-                df_filtered['DailyValue'] = df_filtered[hour_cols].mean(axis=1)
-            val_cols = ['DailyValue']
-            
-        df_agg = df_filtered.groupby(df_filtered['Date'].dt.date)[val_cols].agg(agg_func).reset_index()
-        # Ensure Date is datetime again (groupby output might be date object)
-        df_agg['Date'] = pd.to_datetime(df_agg['Date'])
-        return df_agg
-
-    # 1Y: Monthly Aggregation
-    elif period == '1Y':
-        last_date = df['Date'].max()
-        start_date = last_date - dt.timedelta(days=365)
-        df_filtered = df[df['Date'] >= start_date].copy()
-        
-        if hour_cols:
-            if agg_func == 'sum':
-                df_filtered['DailyValue'] = df_filtered[hour_cols].sum(axis=1)
-            else:
-                df_filtered['DailyValue'] = df_filtered[hour_cols].mean(axis=1)
-            val_cols = ['DailyValue']
-
-        df_filtered = df_filtered.set_index('Date')
-        
-        # Resample
-        # Use 'ME' for Month End if pandas >= 2.2, else 'M'
-        # Since we pinned pandas<2.2, we use 'M'
-        try:
-            df_agg = df_filtered[val_cols].resample('M').agg(agg_func).reset_index()
-        except ValueError:
-             # Fallback for newer pandas if pinned version fails
-            df_agg = df_filtered[val_cols].resample('ME').agg(agg_func).reset_index()
-            
-        if not df_agg.empty:
-            # Shift to start of month
-            df_agg['Date'] = df_agg['Date'].dt.to_period('M').dt.to_timestamp()
-            
-        return df_agg
-    
+    if "Date" in df.columns:
+        df["Date"] = pd.to_datetime(df["Date"])
+    if "Entity" not in df.columns:
+        df["Entity"] = entity
     return df
 
-# --- METRIC HELPER FUNCTIONS ---
 
-def get_spot_price_metric(df_bolsa):
-    """Calculates Spot Price (PrecBolsNaci) metrics."""
-    val_bolsa = 0
-    delta_bolsa = 0
-    date_bolsa = ""
-    prog_bolsa = 0.0
+# ---------------------------------------------------------------------------
+# Parquet layer  (instant load from pre-fetched files)
+# ---------------------------------------------------------------------------
+def _parquet_is_fresh(max_age_hours=25):
+    """Return True if local Parquet data was fetched less than *max_age_hours* ago."""
+    meta_path = _DATA_DIR / "_metadata.json"
+    if not meta_path.exists():
+        return False
+    try:
+        with open(meta_path) as f:
+            meta = json.load(f)
+        last = dt.datetime.fromisoformat(meta["last_fetch"].replace("Z", "+00:00"))
+        age = dt.datetime.now(dt.timezone.utc) - last
+        return age.total_seconds() < max_age_hours * 3600
+    except Exception:
+        return False
 
-    if df_bolsa is not None and not df_bolsa.empty:
-        last_row = df_bolsa.iloc[-1]
-        date_bolsa = last_row['Date'].strftime('%Y-%m-%d')
-        
-        hour_cols = [c for c in df_bolsa.columns if 'Hour' in c]
-        if hour_cols:
-            val_bolsa = last_row[hour_cols].mean()
-            
-            if len(df_bolsa) > 1:
-                prev_row = df_bolsa.iloc[-2]
-                prev_val = prev_row[hour_cols].mean()
-                delta_bolsa = ((val_bolsa - prev_val) / prev_val) * 100 if prev_val != 0 else 0
-        else:
-            val_col = get_chart_val_col(df_bolsa)
-            val_bolsa = last_row[val_col] if val_col in last_row else 0
-        
-        # Progress (vs Max 30d)
-        val_b_col = get_chart_val_col(df_bolsa)
-        if val_b_col:
-            max_30 = df_bolsa[val_b_col].max() # This takes max of whatever aggregation
-            # If hourly, we need max of averages? Or max hourly?
-            # Keeping simple: Max of daily row values (if hourly, it's just one sample unless we compute daily means for all history)
-            # Improving: Compute daily means history
-            if hour_cols:
-                daily_means = df_bolsa[hour_cols].mean(axis=1)
-                max_30 = daily_means.max()
-            
-            if max_30 > 0:
-                prog_bolsa = min(1.0, val_bolsa / max_30)
 
-    return val_bolsa, delta_bolsa, date_bolsa, prog_bolsa
+def _load_parquet(metric_id):
+    """Load a single metric from its Parquet file, or return None."""
+    path = _DATA_DIR / f"{metric_id}.parquet"
+    if not path.exists():
+        return None
+    try:
+        df = pd.read_parquet(path)
+        if "Date" in df.columns:
+            df["Date"] = pd.to_datetime(df["Date"])
+        return df
+    except Exception:
+        return None
 
-def get_scarcity_metric(df_escasez, df_escasez_sup):
-    """Calculates Scarcity Price metrics."""
-    val_escasez = 0
-    delta_escasez = 0
-    prog_escasez = 0.0
-    
-    if df_escasez is not None and not df_escasez.empty:
-        val_col_esc = get_chart_val_col(df_escasez)
-        valid_rows = df_escasez[df_escasez[val_col_esc] > 0.1]
-        if not valid_rows.empty:
-            last_row_esc = valid_rows.iloc[-1]
-            val_escasez = last_row_esc[val_col_esc]
-    
-    if df_escasez_sup is not None and not df_escasez_sup.empty:
+
+def _load_all_parquet(metrics_tuple, start_date_str, end_date_str):
+    """
+    Try to satisfy the request entirely from local Parquet files.
+    Returns a dict {metric_id: DataFrame} on success, or None if any file is missing.
+    """
+    if not _parquet_is_fresh():
+        return None
+
+    start = pd.Timestamp(start_date_str)
+    end = pd.Timestamp(end_date_str) + pd.Timedelta(days=1)  # inclusive end
+
+    results = {}
+    for mid, _ent in metrics_tuple:
+        df = _load_parquet(mid)
+        if df is None:
+            return None  # file missing → fall back to API
+        if "Date" in df.columns:
+            df = df[(df["Date"] >= start) & (df["Date"] < end)]
+        results[mid] = df if (df is not None and not df.empty) else None
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Parallel fetch  (ThreadPoolExecutor, explicit max_workers)
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=21600, show_spinner=False)
+def fetch_metrics_parallel(metrics_tuple, start_date_str, end_date_str):
+    """
+    Fetch multiple metrics.
+
+    Priority:
+      1. Local Parquet files  (< 100 ms)
+      2. Parallel API calls   (3-5 s, ThreadPoolExecutor)
+
+    Args:
+        metrics_tuple : tuple of (metric_id, entity) tuples  (hashable for cache)
+        start_date_str: ISO date string  (hashable for cache)
+        end_date_str  : ISO date string
+
+    Returns:
+        dict  {metric_id: DataFrame | None}
+    """
+    # --- 1. Try Parquet (instant) ---
+    parquet_results = _load_all_parquet(metrics_tuple, start_date_str, end_date_str)
+    if parquet_results is not None:
+        return parquet_results
+
+    # --- 2. Fallback: parallel API fetch ---
+    start = dt.datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    end = dt.datetime.strptime(end_date_str, "%Y-%m-%d").date()
+
+    base = get_api()
+    inventory = base.inventario_metricas
+    url = base.url
+
+    def _fetch_one(metric_id, entity):
         try:
-            val_sup_col = get_chart_val_col(df_escasez_sup)
-            val_sup = df_escasez_sup.iloc[-1][val_sup_col]
-            if val_sup > 0:
-                prog_escasez = min(1.0, val_escasez / val_sup)
-        except: pass
+            client = _ThreadSafeXMClient(inventory, url)
+            df = client.request_data(metric_id, entity, start, end)
+            return metric_id, _normalize_df(df, entity)
+        except Exception:
+            return metric_id, None
 
-    return val_escasez, delta_escasez, prog_escasez
+    results = {}
+    workers = min(len(metrics_tuple), 12)
 
-def get_robust_demand_metric(df_demanda):
-    """
-    Robustly determines the latest valid demand value, handling potential data drops.
-    """
-    val_demanda = 0
-    delta_demanda = 0
-    date_demanda = ""
-    prog_demanda = 0.0
-    
-    if df_demanda is not None and not df_demanda.empty:
-        hour_cols = [c for c in df_demanda.columns if 'Hour' in c]
-        if not hour_cols: return 0, 0, "", 0.0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(_fetch_one, mid, ent): mid
+            for mid, ent in metrics_tuple
+        }
+        for future in as_completed(futures):
+            mid, df = future.result()
+            results[mid] = df
 
-        daily_sums = df_demanda[hour_cols].sum(axis=1)
-        
-        target_idx = -1
-        found_valid = False
-        
-        # Iterate backwards to find a "stable" day
-        for i in range(1, min(6, len(df_demanda))):
-            idx = -1 * i
-            val_current = daily_sums.iloc[idx]
-            
-            # 7-day average relative to THIS day
-            start_bound = max(0, len(df_demanda) + idx - 15)
-            end_bound = len(df_demanda) + idx
-            
-            history_slice = daily_sums.iloc[start_bound:end_bound]
-            valid_history = history_slice[history_slice > 10]
-            
-            if not valid_history.empty:
-                avg_7 = valid_history.tail(7).mean()
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Single-metric fetch (for Explorer or ad-hoc queries)
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=21600, show_spinner=False)
+def fetch_single_metric(metric_id, entity, start_date_str, end_date_str):
+    start = dt.datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    end = dt.datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    api = get_api()
+    try:
+        df = api.request_data(metric_id, entity, start, end)
+        return _normalize_df(df, entity)
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Catalog (cached 24 h)
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_catalog():
+    try:
+        return get_api().get_collections()
+    except Exception:
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# Column helpers
+# ---------------------------------------------------------------------------
+_META_COLS = frozenset({"Date", "Id", "Values_code", "Entity", "MetricId", "Name", "To"})
+
+
+def get_value_col(df):
+    """Return the primary numeric value column of *df*."""
+    if df is None or df.empty:
+        return None
+    if "Value" in df.columns:
+        return "Value"
+    if "DailyValue" in df.columns:
+        return "DailyValue"
+    candidates = [c for c in df.columns if c not in _META_COLS]
+    return candidates[0] if candidates else df.columns[-1]
+
+
+def _hour_cols(df):
+    return [c for c in df.columns if "Hour" in c]
+
+
+# ---------------------------------------------------------------------------
+# Periodicity aggregation
+# ---------------------------------------------------------------------------
+def calculate_periodicity(df, period, agg_func="sum"):
+    """Aggregate *df* to 1D (hourly) / 1M (daily) / 1Y (monthly)."""
+    if df is None or df.empty or "Date" not in df.columns:
+        return df
+
+    df = df.copy()
+    if not pd.api.types.is_datetime64_any_dtype(df["Date"]):
+        df["Date"] = pd.to_datetime(df["Date"])
+
+    hcols = _hour_cols(df)
+    val_cols = [c for c in df.columns if c not in _META_COLS and c not in hcols]
+
+    # --- 1D: last available day (hourly resolution) ---
+    if period == "1D":
+        last_date = df["Date"].max().date()
+        day = df[df["Date"].dt.date == last_date].copy()
+        if hcols:
+            melted = day.melt(
+                id_vars=["Date"], value_vars=hcols,
+                var_name="Hour", value_name="Value",
+            )
+            melted["HourNum"] = melted["Hour"].str.extract(r"(\d+)").astype(int) - 1
+            melted = melted.sort_values("HourNum")
+            melted["Date"] = melted.apply(
+                lambda r: r["Date"] + pd.Timedelta(hours=r["HourNum"]), axis=1,
+            )
+            return melted[["Date", "Value"]]
+        return day
+
+    # --- 1M: daily aggregation (last 30 days) ---
+    if period == "1M":
+        cutoff = df["Date"].max() - dt.timedelta(days=30)
+        chunk = df[df["Date"] >= cutoff].copy()
+        if hcols:
+            chunk["DailyValue"] = (
+                chunk[hcols].sum(axis=1) if agg_func == "sum"
+                else chunk[hcols].mean(axis=1)
+            )
+            val_cols = ["DailyValue"]
+        chunk["_day"] = chunk["Date"].dt.date
+        agg = chunk.groupby("_day")[val_cols].agg(agg_func).reset_index()
+        agg = agg.rename(columns={"_day": "Date"})
+        agg["Date"] = pd.to_datetime(agg["Date"])
+        return agg
+
+    # --- 1Y: monthly aggregation (last 365 days) ---
+    if period == "1Y":
+        cutoff = df["Date"].max() - dt.timedelta(days=365)
+        chunk = df[df["Date"] >= cutoff].copy()
+        if hcols:
+            chunk["DailyValue"] = (
+                chunk[hcols].sum(axis=1) if agg_func == "sum"
+                else chunk[hcols].mean(axis=1)
+            )
+            val_cols = ["DailyValue"]
+        chunk = chunk.set_index("Date")
+        try:
+            agg = chunk[val_cols].resample("ME").agg(agg_func).reset_index()
+        except ValueError:
+            agg = chunk[val_cols].resample("M").agg(agg_func).reset_index()
+        if not agg.empty:
+            agg["Date"] = agg["Date"].dt.to_period("M").dt.to_timestamp()
+        return agg
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# KPI extractors
+# ---------------------------------------------------------------------------
+def extract_spot_price(df):
+    """Return (value, delta%, date_str, progress) for PrecBolsNaci."""
+    val, delta, date_str, progress = 0.0, 0.0, "", 0.0
+    if df is None or df.empty:
+        return val, delta, date_str, progress
+
+    last = df.iloc[-1]
+    date_str = last["Date"].strftime("%Y-%m-%d")
+    hcols = _hour_cols(df)
+
+    if hcols:
+        val = float(last[hcols].mean())
+        if len(df) > 1:
+            prev = float(df.iloc[-2][hcols].mean())
+            delta = ((val - prev) / prev) * 100 if prev else 0.0
+        daily_means = df[hcols].mean(axis=1)
+        mx = float(daily_means.max())
+    else:
+        col = get_value_col(df)
+        val = float(last[col]) if col else 0.0
+        mx = float(df[col].max()) if col else 0.0
+
+    if mx > 0:
+        progress = min(1.0, val / mx)
+    return val, delta, date_str, progress
+
+
+def extract_scarcity(df_base, df_sup):
+    """Return (value, delta%, progress) for PrecEsca."""
+    val, delta, progress = 0.0, 0.0, 0.0
+    if df_base is not None and not df_base.empty:
+        col = get_value_col(df_base)
+        valid = df_base[df_base[col] > 0.1]
+        if not valid.empty:
+            val = float(valid.iloc[-1][col])
+    if df_sup is not None and not df_sup.empty:
+        col_s = get_value_col(df_sup)
+        try:
+            sup = float(df_sup.iloc[-1][col_s])
+            if sup > 0:
+                progress = min(1.0, val / sup)
+        except Exception:
+            pass
+    return val, delta, progress
+
+
+def extract_demand(df):
+    """Return (value, delta%, date_str, progress) for DemaCome."""
+    val, delta, date_str, progress = 0.0, 0.0, "", 0.0
+    if df is None or df.empty:
+        return val, delta, date_str, progress
+
+    hcols = _hour_cols(df)
+    if not hcols:
+        return val, delta, date_str, progress
+
+    daily_sums = df[hcols].sum(axis=1)
+    target_idx = -1
+
+    for i in range(1, min(6, len(df))):
+        idx = -i
+        current = float(daily_sums.iloc[idx])
+        lo = max(0, len(df) + idx - 15)
+        hi = len(df) + idx
+        history = daily_sums.iloc[lo:hi]
+        valid = history[history > 10]
+        avg = float(valid.tail(7).mean()) if not valid.empty else current
+
+        if current > 100 and (avg == 0 or current > 0.8 * avg):
+            target_idx = idx
+            break
+
+    val = float(daily_sums.iloc[target_idx])
+    date_str = df.iloc[target_idx]["Date"].strftime("%Y-%m-%d")
+
+    if len(df) > abs(target_idx):
+        prev = float(daily_sums.iloc[target_idx - 1])
+        delta = ((val - prev) / prev) * 100 if prev else 0.0
+
+    mx = float(daily_sums.max())
+    if mx > 0:
+        progress = min(1.0, val / mx)
+    return val, delta, date_str, progress
+
+
+def extract_offer(df):
+    """Return (max, min, avg, date_str, progress) for MaxPrecOferNal."""
+    mx, mn, avg, date_str, progress = 0.0, 0.0, 0.0, "", 0.0
+    if df is None or df.empty:
+        return mx, mn, avg, date_str, progress
+
+    last = df.iloc[-1]
+    date_str = last["Date"].strftime("%Y-%m-%d")
+    hcols = _hour_cols(df)
+    if hcols:
+        vals = last[hcols]
+        mx, mn, avg = float(vals.max()), float(vals.min()), float(vals.mean())
+        if mx > 0:
+            progress = min(1.0, avg / mx)
+    return mx, mn, avg, date_str, progress
+
+
+# ---------------------------------------------------------------------------
+# Data tail trimmer (remove partial-data trailing days)
+# ---------------------------------------------------------------------------
+def trim_partial_tail(df, val_col):
+    """Drop trailing rows whose value is suspiciously low (partial data)."""
+    if df is None or df.empty or len(df) < 3:
+        return df
+    df = df.copy()
+
+    if len(df) >= 8:
+        cut = 0
+        for i in range(1, min(6, len(df))):
+            idx = -i
+            current = float(df.iloc[idx][val_col])
+            lo = max(0, len(df) + idx - 15)
+            hi = len(df) + idx
+            history = df.iloc[lo:hi][val_col]
+            valid = history[history > 10]
+            avg = float(valid.tail(7).mean()) if not valid.empty else current
+
+            if avg > 0 and current < 0.8 * avg:
+                cut = idx - 1
             else:
-                avg_7 = val_current
-            
-            # Heuristic: Valid if > 80% of its history, OR if history is 0 (new)
-            # Also absolute threshold > 100
-            if val_current > 100 and (avg_7 == 0 or val_current > 0.8 * avg_7):
-                target_idx = idx
-                found_valid = True
+                if cut != 0:
+                    cut = idx
                 break
-        
-        if not found_valid: target_idx = -1
-
-        row_dem = df_demanda.iloc[target_idx]
-        val_demanda = daily_sums.iloc[target_idx]
-        date_demanda = row_dem['Date'].strftime('%Y-%m-%d')
-        
-        # Delta
-        if len(df_demanda) > abs(target_idx):
-            prev_dem = daily_sums.iloc[target_idx - 1]
-            delta_demanda = ((val_demanda - prev_dem) / prev_dem) * 100 if prev_dem != 0 else 0
-            
-        # Progress (vs Max 30d)
-        max_dem_30 = daily_sums.max()
-        if max_dem_30 > 0:
-            prog_demanda = min(1.0, val_demanda / max_dem_30)
-            
-    return val_demanda, delta_demanda, date_demanda, prog_demanda
-
-def get_offer_metric(df_oferta):
-    """Calculates Offer (MaxPrecOferNal) metrics."""
-    max_oferta, min_oferta, avg_oferta = 0, 0, 0
-    date_oferta = ""
-    prog_oferta = 0.0
-
-    if df_oferta is not None and not df_oferta.empty:
-        last_row_off = df_oferta.iloc[-1]
-        date_oferta = last_row_off['Date'].strftime('%Y-%m-%d')
-        hour_cols = [c for c in df_oferta.columns if 'Hour' in c]
-        if hour_cols:
-            vals = last_row_off[hour_cols]
-            max_oferta = vals.max()
-            min_oferta = vals.min()
-            avg_oferta = vals.mean()
-            
-            if max_oferta > 0:
-                prog_oferta = min(1.0, avg_oferta / max_oferta)
-                
-    return max_oferta, min_oferta, avg_oferta, date_oferta, prog_oferta
+        if cut < 0:
+            df = df.iloc[: cut + 1]
+    else:
+        last = float(df.iloc[-1][val_col])
+        prev = float(df.iloc[-2][val_col])
+        if prev > 0 and last < 0.6 * prev:
+            df = df.iloc[:-1]
+    return df
