@@ -941,6 +941,8 @@ elif selection == "Informe del CEO":
 
     if "ceo_api_key" not in st.session_state:
         st.session_state.ceo_api_key = ""
+    if "ceo_key_input" not in st.session_state:
+        st.session_state.ceo_key_input = st.session_state.ceo_api_key
     current_period_key = f"{start_str}|{end_str}"
     if "ceo_period_key" not in st.session_state:
         st.session_state.ceo_period_key = current_period_key
@@ -965,13 +967,26 @@ elif selection == "Informe del CEO":
             "Gemini API Key",
             type="password",
             placeholder="AIza...",
-            key="ceo_api_key",
-            help="Se aplica inmediatamente en esta sesión. No necesitas presionar Guardar.",
+            key="ceo_key_input",
+            help="Pega la key y presiona 'Guardar API Key'.",
         )
-        st.caption("La API Key se usa solo en la sesión actual de Streamlit.")
-        if st.button("Limpiar API Key", key="clear_ceo_key"):
+        c_key_1, c_key_2 = st.columns(2)
+        if c_key_1.button("Guardar API Key", key="save_ceo_key"):
+            saved = (st.session_state.ceo_key_input or "").strip()
+            st.session_state.ceo_api_key = saved
+            st.session_state.ceo_key_input = saved
+            if saved:
+                st.success("API Key guardada y activa para esta sesión.")
+            else:
+                st.warning("Ingresa una API Key válida.")
+        if c_key_2.button("Limpiar API Key", key="clear_ceo_key"):
             st.session_state.ceo_api_key = ""
+            st.session_state.ceo_key_input = ""
             st.warning("API Key eliminada de la sesión.")
+        if st.session_state.ceo_api_key:
+            st.caption("Estado: API Key activa en esta sesión.")
+        else:
+            st.caption("Estado: sin API Key activa.")
 
     st.markdown(
         """
