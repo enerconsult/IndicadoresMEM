@@ -1002,6 +1002,17 @@ elif selection == "Informe del CEO":
         cur.get("CapaUtilDiarEner"), cur.get("VoluUtilDiarEner"),
         cur.get("AporEner"), cur.get("AporEnerMediHist"), "RANGE")
 
+    # --- Define specific dataframes for charts ---
+    df_bolsa       = cur.get("PrecBolsNaci")
+    df_escasez     = cur.get("PrecEsca")
+    df_escasez_sup = cur.get("PrecEscaSup")
+    df_demanda     = cur.get("DemaCome")
+    df_gen         = cur.get("Gene")
+    df_vol         = cur.get("VoluUtilDiarEner")
+    df_cap         = cur.get("CapaUtilDiarEner")
+    df_apor        = cur.get("AporEner")
+    df_media       = cur.get("AporEnerMediHist")
+
     pressure_now = util_now = hydro_dev_now = 0.0
     price_cur = 0.0
     state = "SIN DATOS"
