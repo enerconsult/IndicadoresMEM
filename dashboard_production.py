@@ -873,8 +873,18 @@ elif selection == "Informe del CEO":
         font-size: 0.85rem !important;
       }}
 
+      /* ---- Bottom bar: kill white stripe ---- */
+      div[data-testid="stBottom"] {{
+        background: {_bg} !important;
+        border-top: none !important;
+      }}
+      div[data-testid="stBottom"] > div {{
+        background: transparent !important;
+      }}
+
       /* ---- Input bar: floating glass ---- */
       div[data-testid="stChatInput"] {{
+        background: transparent !important;
         border-top: none !important;
         padding: 0.4rem 0 !important;
       }}
@@ -929,17 +939,37 @@ elif selection == "Informe del CEO":
         color: {_sub}; font-size: 0.82rem; margin: 0;
       }}
 
-      /* ---- Topic chips ---- */
-      .mem-topics {{
+      /* ---- Suggested question cards ---- */
+      .mem-suggestions {{
         display: flex; justify-content: center; flex-wrap: wrap;
-        gap: 0.5rem; margin: 0.8rem auto 1.5rem; max-width: 500px;
+        gap: 0.6rem; margin: 1.2rem auto 1.5rem; max-width: 640px;
+        padding: 0 0.5rem;
       }}
-      .mem-topics .chip {{
-        font-size: 0.72rem; font-weight: 600;
-        padding: 5px 14px; border-radius: 999px;
-        color: {_accent};
-        background: {'rgba(129,140,248,0.08)' if is_dark else 'rgba(79,70,229,0.06)'};
-        border: 1px solid {'rgba(129,140,248,0.2)' if is_dark else 'rgba(79,70,229,0.15)'};
+      /* Style the Streamlit buttons inside the suggestions area */
+      .mem-suggestions-row button {{
+        background: {'rgba(129,140,248,0.06)' if is_dark else 'rgba(79,70,229,0.04)'} !important;
+        border: 1px solid {'rgba(129,140,248,0.18)' if is_dark else 'rgba(79,70,229,0.12)'} !important;
+        border-radius: 14px !important;
+        color: {_text} !important;
+        font-size: 0.78rem !important;
+        font-weight: 500 !important;
+        padding: 0.6rem 1rem !important;
+        text-align: left !important;
+        transition: all 0.2s !important;
+        height: auto !important;
+        min-height: 56px !important;
+        white-space: normal !important;
+        line-height: 1.4 !important;
+      }}
+      .mem-suggestions-row button:hover {{
+        background: {'rgba(129,140,248,0.14)' if is_dark else 'rgba(79,70,229,0.08)'} !important;
+        border-color: {_accent} !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px {'rgba(129,140,248,0.15)' if is_dark else 'rgba(79,70,229,0.1)'} !important;
+      }}
+      .mem-suggestions-row button p {{
+        color: {_text} !important;
+        font-size: 0.78rem !important;
       }}
 
       /* ---- Status bar ---- */
@@ -1022,6 +1052,19 @@ elif selection == "Informe del CEO":
 
     has_messages = len(st.session_state.ceo_chat_messages) > 0
 
+    # Predefined suggestions
+    _SUGGESTIONS = [
+        "Cual es el estado actual del mercado y los principales riesgos?",
+        "Como se comporta el precio de bolsa frente al precio de escasez?",
+        "Cual es el nivel de los embalses y como estan los aportes hidricos?",
+    ]
+
+    # Handle suggestion click from previous run
+    if "ceo_suggestion" not in st.session_state:
+        st.session_state.ceo_suggestion = None
+    pending_suggestion = st.session_state.ceo_suggestion
+    st.session_state.ceo_suggestion = None
+
     # --- Welcome hero (only when chat is empty) ---
     if not has_messages:
         dot_cls = "d-ok" if state == "NORMAL" else ("d-warn" if state == "ALERTA" else "d-crit")
@@ -1031,14 +1074,6 @@ elif selection == "Informe del CEO":
           <h2>Consultor MEM AI</h2>
           <p>Analisis inteligente del mercado electrico colombiano</p>
         </div>
-        <div class="mem-topics">
-          <span class="chip">Precios de bolsa</span>
-          <span class="chip">Precio de escasez</span>
-          <span class="chip">Demanda y generacion</span>
-          <span class="chip">Embalses</span>
-          <span class="chip">Aportes hidricos</span>
-          <span class="chip">Riesgo del mercado</span>
-        </div>
         <div class="mem-status">
           <span class="pill"><span class="d {dot_cls}"></span> {state}</span>
           <span class="pill">{start_str} &rarr; {end_str}</span>
@@ -1046,8 +1081,16 @@ elif selection == "Informe del CEO":
           <span class="pill">Embalse {util_now:.1f}%</span>
         </div>
         """, unsafe_allow_html=True)
+
+        # Clickable suggestion buttons
+        st.markdown('<div class="mem-suggestions-row">', unsafe_allow_html=True)
+        sg_cols = st.columns(3)
+        for i, txt in enumerate(_SUGGESTIONS):
+            if sg_cols[i].button(txt, key=f"sg_{i}", use_container_width=True):
+                st.session_state.ceo_suggestion = txt
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
-        # Compact status bar when chat has messages
         dot_cls = "d-ok" if state == "NORMAL" else ("d-warn" if state == "ALERTA" else "d-crit")
         st.markdown(f"""
         <div class="mem-status">
@@ -1073,6 +1116,10 @@ elif selection == "Informe del CEO":
 
     if question:
         question = question.strip() or None
+
+    # Accept suggestion if no typed question
+    if not question and pending_suggestion:
+        question = pending_suggestion
 
     # Deduplicate
     if question:
