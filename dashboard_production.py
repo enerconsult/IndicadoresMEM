@@ -136,46 +136,55 @@ def _add_chart_stats(fig, df, value_col, label, color):
 
 
 def _call_ceo_consultant(api_key, user_question, report_context, history):
-    system_prompt = (
-        "Eres un consultor senior del Mercado de Energía Mayorista (MEM) de Colombia. "
-        "Respondes exclusivamente temas de mercado de energía, operación del sistema, precios, "
-        "escasez, demanda, generación, embalses, aportes e implicaciones ejecutivas. "
-        "Debes usar primero el contexto del informe suministrado. "
-        "Si preguntan fuera de este dominio, responde brevemente que solo atiendes mercado de energía. "
-        "No inventes datos; si falta información, indícalo."
+    instruction = (
+        "Actúa como consultor experto del Mercado de Energía Mayorista (MEM) de Colombia.\n"
+        "Reglas:\n"
+        "- Responde SOLO sobre mercado de energía, operación del sistema, precios, escasez, demanda, generación, embalses y aportes.\n"
+        "- Usa primero el contexto del informe provisto.\n"
+        "- Si la pregunta está fuera de ese dominio, indícalo brevemente.\n"
+        "- No inventes cifras; si no hay dato en el contexto, dilo con claridad.\n"
+        "- Responde en español ejecutivo, claro y accionable.\n"
     )
 
-    prior = []
+    history_text = []
     for msg in history[-8:]:
-        if msg["role"] in ("user", "assistant"):
-            prior.append({"role": msg["role"], "content": msg["content"]})
+        role = "Usuario" if msg.get("role") == "user" else "Consultor"
+        history_text.append(f"{role}: {msg.get('content', '')}")
+    history_block = "\n".join(history_text)
 
-    messages = [
-        {"role": "system", "content": system_prompt + "\n\nContexto del informe:\n" + report_context},
-        *prior,
-        {"role": "user", "content": user_question},
-    ]
+    prompt = (
+        f"{instruction}\n"
+        f"Contexto del informe:\n{report_context}\n\n"
+        f"Historial reciente:\n{history_block}\n\n"
+        f"Pregunta actual del usuario:\n{user_question}\n\n"
+        "Entrega una respuesta directa con 3 bloques: 1) lectura del dato, 2) implicación de negocio, 3) recomendación."
+    )
 
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.5-flash:generateContent?key={api_key}"
+    )
     payload = {
-        "model": "gpt-4o-mini",
-        "messages": messages,
-        "temperature": 0.2,
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ],
+        "generationConfig": {"temperature": 0.2},
     }
 
     res = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        url,
+        headers={"Content-Type": "application/json"},
         json=payload,
         timeout=60,
     )
     data = res.json()
     if not res.ok:
-        msg = data.get("error", {}).get("message", "Error al consultar el modelo.")
+        msg = data.get("error", {}).get("message", "Error al consultar Gemini.")
         raise RuntimeError(msg)
-    return data["choices"][0]["message"]["content"]
+    return data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
 
 # ======================================================================
 # SIDEBAR
@@ -643,171 +652,70 @@ if selection == "Resumen":
 
 
 elif selection == "Informe del CEO":
-    st.title("📝 Informe del CEO")
-    st.caption("Análisis automático del periodo seleccionado con semáforo y hallazgos operativos.")
-    st.info(
-        "El informe compara el periodo seleccionado contra el periodo anterior de igual duración "
-        "y resume presión de precios, balance de energía y condición hidrológica."
-    )
+    st.markdown("""
+    <style>
+      .ceo-wrap {max-width: 980px; margin: 0 auto;}
+      .ceo-hero {
+        background: linear-gradient(135deg, #0f172a, #1e3a8a 60%, #0f766e);
+        color: #f8fafc; border-radius: 18px; padding: 18px 22px; margin-bottom: 16px;
+        border: 1px solid rgba(148,163,184,0.25);
+      }
+      .ceo-hero h2 {margin: 0; font-size: 1.25rem; font-weight: 800;}
+      .ceo-hero p {margin: 6px 0 0; color: #cbd5e1; font-size: 0.9rem;}
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="ceo-wrap">', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="ceo-hero">
+      <h2>Informe del CEO | Chat Consultor MEM</h2>
+      <p>Asistente experto en mercado de energía. Consulta solo información del MEM y análisis ejecutivo del periodo seleccionado.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
-    days = max((end_date - start_date).days + 1, 1)
-    prev_end = start_date - dt.timedelta(days=1)
-    prev_start = prev_end - dt.timedelta(days=days - 1)
-
-    with st.spinner("Construyendo informe..."):
+    with st.spinner("Preparando contexto del periodo para el consultor..."):
         cur = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
-        prev = fetch_metrics_parallel(
-            SUMMARY_METRICS,
-            prev_start.strftime("%Y-%m-%d"),
-            prev_end.strftime("%Y-%m-%d"),
-        )
-
     market_cur = _build_market_risk_frame(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), "RANGE")
     hydro_cur = _build_hydro_frame(cur.get("CapaUtilDiarEner"), cur.get("VoluUtilDiarEner"), cur.get("AporEner"), cur.get("AporEnerMediHist"), "RANGE")
-    market_prev = _build_market_risk_frame(prev.get("PrecBolsNaci"), prev.get("PrecEsca"), prev.get("PrecEscaSup"), "RANGE")
-    hydro_prev = _build_hydro_frame(prev.get("CapaUtilDiarEner"), prev.get("VoluUtilDiarEner"), prev.get("AporEner"), prev.get("AporEnerMediHist"), "RANGE")
 
     pressure_now = util_now = hydro_dev_now = 0.0
+    price_cur = 0.0
     state = "SIN DATOS"
     if market_cur is not None and hydro_cur is not None and not market_cur.empty and not hydro_cur.empty:
+        price_cur = float(market_cur["Bolsa"].mean())
         pressure_now = float(market_cur.iloc[-1]["PresionPct"])
         util_now = float(hydro_cur.iloc[-1]["UtilPct"])
         hydro_dev_now = float(hydro_cur.iloc[-1]["HydroDevPct"])
         state = _classify_risk(pressure_now, hydro_dev_now, util_now)
-
-    def _safe_metric(df, col, agg="mean"):
-        if df is None or df.empty or col not in df.columns:
-            return 0.0
-        return float(df[col].mean() if agg == "mean" else df[col].sum())
-
-    price_cur = _safe_metric(market_cur, "Bolsa", "mean")
-    price_prev = _safe_metric(market_prev, "Bolsa", "mean")
-    pressure_prev = _safe_metric(market_prev, "PresionPct", "mean")
     demand_cur = _aggregate_period_sum(cur.get("DemaCome"))
-    demand_prev = _aggregate_period_sum(prev.get("DemaCome"))
     gen_cur = _aggregate_period_sum(cur.get("Gene"))
-    gen_prev = _aggregate_period_sum(prev.get("Gene"))
-    util_prev = _safe_metric(hydro_prev, "UtilPct", "mean")
-
-    st.markdown("### Resumen Ejecutivo")
-    st.markdown(f"- Estado general del periodo: **{state}**.")
-    st.markdown(
-        f"- Precio bolsa promedio: **${price_cur:,.1f}** "
-        f"({ _pct_change(price_cur, price_prev):+.1f}% vs periodo previo)."
-    )
-    st.markdown(
-        f"- Presión de mercado actual: **{pressure_now:.1f}%** "
-        f"({ _pct_change(pressure_now, pressure_prev):+.1f}% vs periodo previo)."
-    )
     balance_cur = (gen_cur - demand_cur) / 1e6
-    balance_prev = (gen_prev - demand_prev) / 1e6
-    st.markdown(
-        f"- Balance generación-demanda: **{balance_cur:,.1f} GWh** "
-        f"({ _pct_change(balance_cur, balance_prev if balance_prev != 0 else 1):+.1f}% vs previo)."
-    )
-    st.markdown(
-        f"- Utilización de embalse: **{util_now:.1f}%** y desvío de aportes: **{hydro_dev_now:.1f}%**."
-    )
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Semáforo", state)
-    c2.metric("Precio Bolsa Prom.", f"${price_cur:,.1f}", f"{_pct_change(price_cur, price_prev):+.1f}%")
-    c3.metric("Presión Mercado", f"{pressure_now:.1f}%", f"{_pct_change(pressure_now, pressure_prev):+.1f}%")
-    c4.metric("Utilización Embalse", f"{util_now:.1f}%", f"{_pct_change(util_now, util_prev):+.1f}%")
-
-    st.markdown("### ¿Cómo se calcula cada valor?")
-    last_market_date = market_cur.iloc[-1]["Date"].strftime("%Y-%m-%d") if market_cur is not None and not market_cur.empty else end_str
-    st.markdown(
-        f"- **${price_cur:,.1f} (Precio Bolsa Prom.)**: promedio aritmético de los precios horarios de bolsa "
-        f"entre **{start_str}** y **{end_str}**. Se suma cada valor horario del periodo y se divide por el total de horas."
-    )
-    st.markdown(
-        f"- **{pressure_now:.1f}% (Presión Mercado)**: relación del último día disponible "
-        f"(**{last_market_date}**) entre Precio Bolsa y Precio de Escasez Superior: "
-        f"`(Bolsa / Escasez Superior) x 100`."
-    )
-    st.markdown(
-        f"- **{balance_cur:,.1f} GWh (Balance Generación-Demanda)**: diferencia acumulada del periodo "
-        f"entre generación total y demanda total: `(Σ Generación - Σ Demanda) / 1e6`."
-    )
-    st.markdown(
-        f"- **{util_now:.1f}% (Utilización Embalse)**: porcentaje de uso del embalse en el último día disponible: "
-        f"`(Volumen Útil / Capacidad Útil) x 100`."
-    )
-    st.markdown(
-        f"- **{hydro_dev_now:.1f}% (Desvío de Aportes)**: desviación porcentual de aportes frente a su media histórica: "
-        f"`((Aportes / Media Histórica) - 1) x 100`."
-    )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    _chart_price_vs_scarcity(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), cur.get("PrecEscaInf"))
-    st.markdown("<br>", unsafe_allow_html=True)
-    _chart_demand_vs_gen(cur.get("DemaCome"), cur.get("Gene"))
-    st.markdown("<br>", unsafe_allow_html=True)
-    _chart_hydro_efficiency(
-        cur.get("CapaUtilDiarEner"),
-        cur.get("VoluUtilDiarEner"),
-        cur.get("AporEner"),
-        cur.get("AporEnerMediHist"),
-    )
-
-    st.markdown("### Hallazgos Automáticos")
     findings = []
     if pressure_now > 100:
-        findings.append("Presión de mercado por encima de 100%: tensión crítica de precio.")
+        findings.append("Presión de mercado > 100%")
     elif pressure_now >= 90:
-        findings.append("Presión de mercado en banda de alerta (90%-100%).")
+        findings.append("Presión en banda de alerta (90%-100%)")
     if util_now > 80:
-        findings.append("Utilización de embalse superior a 80%: holgura operativa reducida.")
+        findings.append("Utilización de embalse > 80%")
     if hydro_dev_now < -15:
-        findings.append("Aportes hídricos con desvío menor a -15%: riesgo hidrológico elevado.")
+        findings.append("Aportes por debajo de -15% vs media")
     if balance_cur < 0:
-        findings.append("Balance neto generación-demanda negativo en el periodo.")
+        findings.append("Balance neto generación-demanda negativo")
     if not findings:
-        findings.append("No se detectaron eventos críticos con las reglas actuales para este periodo.")
-    for item in findings:
-        st.markdown(f"- {item}")
-
-    if market_cur is not None and hydro_cur is not None:
-        risk_tbl = market_cur[["Date", "PresionPct", "Brecha"]].merge(
-            hydro_cur[["Date", "UtilPct", "HydroDevPct"]],
-            on="Date",
-            how="inner",
-        ).sort_values("Date")
-        if not risk_tbl.empty:
-            risk_tbl["Estado"] = risk_tbl.apply(
-                lambda r: _classify_risk(r["PresionPct"], r["HydroDevPct"], r["UtilPct"]),
-                axis=1,
-            )
-            out = risk_tbl.tail(30).copy()
-            out["Date"] = out["Date"].dt.strftime("%Y-%m-%d")
-            out = out.rename(columns={
-                "Date": "Fecha",
-                "PresionPct": "Presión (%)",
-                "Brecha": "Brecha Bolsa-Escasez",
-                "UtilPct": "Utilización Embalse (%)",
-                "HydroDevPct": "Desvío Aportes (%)",
-            })
-            st.markdown("### Evidencias del Periodo")
-            st.dataframe(out, use_container_width=True, hide_index=True)
+        findings.append("Sin alertas críticas para el periodo")
 
     report_context = (
-        f"Periodo: {start_str} a {end_str}\n"
+        f"Periodo analizado: {start_str} a {end_str}\n"
         f"Estado general: {state}\n"
         f"Precio bolsa promedio: {price_cur:.2f} COP/kWh\n"
         f"Presión de mercado: {pressure_now:.2f}%\n"
         f"Balance generación-demanda: {balance_cur:.2f} GWh\n"
         f"Utilización embalse: {util_now:.2f}%\n"
-        f"Desvío de aportes: {hydro_dev_now:.2f}%\n"
+        f"Desvío aportes: {hydro_dev_now:.2f}%\n"
         f"Hallazgos: {' | '.join(findings)}"
-    )
-
-    st.markdown("### Chat de Análisis (Consultor MEM)")
-    st.caption(
-        "Consulta solo temas de mercado de energía. El asistente responde con base en este informe "
-        "y conocimiento experto del MEM."
     )
 
     if "ceo_api_key" not in st.session_state:
@@ -816,16 +724,16 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_chat_messages = [
             {
                 "role": "assistant",
-                "content": "Soy tu consultor del mercado de energía. Pregúntame sobre precios, escasez, demanda, generación o embalses de este informe.",
+                "content": "Listo. Soy tu consultor experto del MEM. Pregúntame sobre precios, escasez, demanda, generación, embalses o implicaciones ejecutivas del periodo.",
             }
         ]
 
-    with st.expander("Configurar API Key", expanded=(not bool(st.session_state.ceo_api_key))):
+    with st.expander("Configuración de API Key (Gemini)", expanded=(not bool(st.session_state.ceo_api_key))):
         key_input = st.text_input(
-            "OpenAI API Key",
+            "Gemini API Key",
             type="password",
             value=st.session_state.ceo_api_key,
-            placeholder="sk-...",
+            placeholder="AIza...",
             key="ceo_key_input",
         )
         c_key_1, c_key_2 = st.columns(2)
@@ -839,33 +747,49 @@ elif selection == "Informe del CEO":
             st.session_state.ceo_api_key = ""
             st.warning("API Key eliminada de la sesión.")
 
+    quick_col_1, quick_col_2, quick_col_3 = st.columns(3)
+    if quick_col_1.button("¿Cuál es el principal riesgo del periodo?", use_container_width=True):
+        st.session_state.ceo_quick_q = "¿Cuál es el principal riesgo del periodo y por qué?"
+    if quick_col_2.button("¿Qué decisión tomarías hoy?", use_container_width=True):
+        st.session_state.ceo_quick_q = "Con este estado del mercado, ¿qué decisión ejecutiva tomarías hoy?"
+    if quick_col_3.button("Proyección 7 días", use_container_width=True):
+        st.session_state.ceo_quick_q = "Dame una lectura ejecutiva para los próximos 7 días, con riesgos y recomendaciones."
+
     for msg in st.session_state.ceo_chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    question = st.chat_input("Escribe tu pregunta de análisis del mercado...")
+    question = st.chat_input("Pregunta al consultor MEM...")
+    if not question and "ceo_quick_q" in st.session_state and st.session_state.ceo_quick_q:
+        question = st.session_state.ceo_quick_q
+        st.session_state.ceo_quick_q = ""
+
     if question:
         st.session_state.ceo_chat_messages.append({"role": "user", "content": question})
         with st.chat_message("user"):
             st.markdown(question)
 
         if not st.session_state.ceo_api_key:
-            answer = "Primero configura tu API Key para activar el consultor."
+            answer = "Primero configura tu API Key de Gemini para activar el consultor."
         else:
             try:
-                with st.spinner("Analizando informe y mercado..."):
+                with st.spinner("Analizando el MEM..."):
                     answer = _call_ceo_consultant(
                         st.session_state.ceo_api_key,
                         question,
                         report_context,
                         st.session_state.ceo_chat_messages,
                     )
+                    if not answer:
+                        answer = "No recibí contenido del modelo en esta consulta. Intenta reformular la pregunta."
             except Exception as e:
                 answer = f"No pude completar la consulta: {e}"
 
         st.session_state.ceo_chat_messages.append({"role": "assistant", "content": answer})
         with st.chat_message("assistant"):
             st.markdown(answer)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 
 elif selection == "Explorador":
