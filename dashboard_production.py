@@ -5,6 +5,7 @@ import pandas as pd
 import datetime as dt
 import requests
 import html as pyhtml
+import re
 
 from utils.style import init_theme, toggle_theme, get_theme_config, load_css
 from utils.data import (
@@ -136,12 +137,119 @@ def _add_chart_stats(fig, df, value_col, label, color):
     ))
 
 
+def _extract_question_range(question, global_start, global_end):
+    """Parse explicit date ranges from user question and clamp to selected global period."""
+    if not question:
+        return None
+
+    text = question.lower()
+    parsed = []
+    patterns = [
+        (r"\b\d{4}-\d{2}-\d{2}\b", "%Y-%m-%d"),
+        (r"\b\d{1,2}/\d{1,2}/\d{4}\b", "%d/%m/%Y"),
+        (r"\b\d{1,2}-\d{1,2}-\d{4}\b", "%d-%m-%Y"),
+    ]
+    for pat, fmt in patterns:
+        for token in re.findall(pat, text):
+            try:
+                parsed.append(dt.datetime.strptime(token, fmt).date())
+            except ValueError:
+                pass
+
+    if len(parsed) >= 2:
+        start_q = min(parsed[0], parsed[1])
+        end_q = max(parsed[0], parsed[1])
+    elif len(parsed) == 1:
+        start_q = end_q = parsed[0]
+    else:
+        m_days = re.search(r"\bultim[oa]s?\s+(\d+)\s+d[ií]as\b", text)
+        if m_days:
+            days = max(1, int(m_days.group(1)))
+            end_q = global_end
+            start_q = end_q - dt.timedelta(days=days - 1)
+        elif "última semana" in text or "ultima semana" in text:
+            end_q = global_end
+            start_q = end_q - dt.timedelta(days=6)
+        elif "último mes" in text or "ultimo mes" in text:
+            end_q = global_end
+            start_q = end_q - dt.timedelta(days=29)
+        else:
+            return None
+
+    start_q = max(start_q, global_start)
+    end_q = min(end_q, global_end)
+    if start_q > end_q:
+        return None
+    return start_q, end_q
+
+
+def _fmt_or_nd(v, fmt):
+    if v is None:
+        return "N/D"
+    return format(v, fmt)
+
+
+def _build_subperiod_context(question, global_start, global_end, cur, market_cur, hydro_cur):
+    sub_range = _extract_question_range(question, global_start, global_end)
+    if not sub_range:
+        return ""
+    sub_start, sub_end = sub_range
+
+    def _between(df):
+        if df is None or df.empty or "Date" not in df.columns:
+            return None
+        tmp = df.copy()
+        tmp["Date"] = pd.to_datetime(tmp["Date"]).dt.date
+        return tmp[(tmp["Date"] >= sub_start) & (tmp["Date"] <= sub_end)]
+
+    price_val = pressure_val = util_val = hydro_dev_val = None
+    state_val = "SIN DATOS"
+
+    market_sub = _between(market_cur)
+    if market_sub is not None and not market_sub.empty:
+        price_val = float(market_sub["Bolsa"].mean()) if "Bolsa" in market_sub.columns else None
+        pressure_val = float(market_sub.iloc[-1]["PresionPct"]) if "PresionPct" in market_sub.columns else None
+
+    hydro_sub = _between(hydro_cur)
+    if hydro_sub is not None and not hydro_sub.empty:
+        util_val = float(hydro_sub.iloc[-1]["UtilPct"]) if "UtilPct" in hydro_sub.columns else None
+        hydro_dev_val = float(hydro_sub.iloc[-1]["HydroDevPct"]) if "HydroDevPct" in hydro_sub.columns else None
+
+    if pressure_val is not None and hydro_dev_val is not None and util_val is not None:
+        state_val = _classify_risk(pressure_val, hydro_dev_val, util_val)
+
+    dem_daily = _metric_to_daily_value(cur.get("DemaCome"), mode="sum")
+    gen_daily = _metric_to_daily_value(cur.get("Gene"), mode="sum")
+    balance_val = None
+    if dem_daily is not None and gen_daily is not None and not dem_daily.empty and not gen_daily.empty:
+        dem_sub = _between(dem_daily)
+        gen_sub = _between(gen_daily)
+        if dem_sub is not None and gen_sub is not None and not dem_sub.empty and not gen_sub.empty:
+            demand_sum = float(dem_sub["_value"].sum())
+            gen_sum = float(gen_sub["_value"].sum())
+            balance_val = (gen_sum - demand_sum) / 1e6
+
+    return (
+        "\n"
+        "SUBRANGO SOLICITADO (prioritario para responder):\n"
+        f"- Desde: {sub_start.strftime('%Y-%m-%d')}\n"
+        f"- Hasta: {sub_end.strftime('%Y-%m-%d')}\n"
+        f"- Estado general subrango: {state_val}\n"
+        f"- Precio bolsa promedio subrango: {_fmt_or_nd(price_val, '.2f')} COP/kWh\n"
+        f"- Presión de mercado subrango (último punto): {_fmt_or_nd(pressure_val, '.2f')}%\n"
+        f"- Balance generación-demanda subrango: {_fmt_or_nd(balance_val, '.2f')} GWh\n"
+        f"- Utilización embalse subrango (último punto): {_fmt_or_nd(util_val, '.2f')}%\n"
+        f"- Desvío aportes subrango (último punto): {_fmt_or_nd(hydro_dev_val, '.2f')}%\n"
+    )
+
+
 def _call_ceo_consultant(api_key, user_question, report_context, history):
     instruction = (
         "Actúa como consultor experto del Mercado de Energía Mayorista (MEM) de Colombia.\n"
         "Reglas:\n"
         "- Responde SOLO sobre mercado de energía, operación del sistema, precios, escasez, demanda, generación, embalses y aportes.\n"
         "- Usa primero el contexto del informe provisto.\n"
+        "- Si en el contexto aparece 'SUBRANGO SOLICITADO (prioritario)', responde principalmente sobre ese subrango.\n"
         "- Si la pregunta está fuera de ese dominio, indícalo brevemente.\n"
         "- No inventes cifras; si no hay dato en el contexto, dilo con claridad.\n"
         "- Responde en español ejecutivo, claro y accionable.\n"
@@ -946,10 +1054,19 @@ elif selection == "Informe del CEO":
         else:
             try:
                 with st.spinner("Analizando el MEM..."):
+                    specific_context = _build_subperiod_context(
+                        question=question,
+                        global_start=start_date,
+                        global_end=end_date,
+                        cur=cur,
+                        market_cur=market_cur,
+                        hydro_cur=hydro_cur,
+                    )
+                    final_context = report_context + specific_context
                     answer = _call_ceo_consultant(
                         st.session_state.ceo_api_key,
                         question,
-                        report_context,
+                        final_context,
                         st.session_state.ceo_chat_messages,
                     )
                     if not answer:
