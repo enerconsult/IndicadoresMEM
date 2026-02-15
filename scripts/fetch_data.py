@@ -179,9 +179,14 @@ class _Client(ReadDB):
             return pd.DataFrame()
 
         for col in data.columns:
-            data[col] = pd.to_numeric(data[col], errors="ignore")
+            try:
+                converted = pd.to_numeric(data[col], errors="coerce")
+                if not converted.isna().all():
+                    data[col] = converted
+            except Exception:
+                pass
         if "Date" in data.columns:
-            data["Date"] = pd.to_datetime(data["Date"], errors="ignore", format="%Y-%m-%d")
+            data["Date"] = pd.to_datetime(data["Date"], errors="coerce", format="%Y-%m-%d")
 
         return data
 

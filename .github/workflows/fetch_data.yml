@@ -22,7 +22,7 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: pip install pydataxm pandas pyarrow aiohttp
+        run: pip install -r requirements.txt aiohttp
 
       - name: Fetch XM metrics
         id: fetch
