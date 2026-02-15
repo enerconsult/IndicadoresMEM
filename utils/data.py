@@ -269,10 +269,7 @@ def calculate_periodicity(df, period, agg_func="sum"):
             )
             val_cols = ["DailyValue"]
         chunk = chunk.set_index("Date")
-        try:
             agg = chunk[val_cols].resample("ME").agg(agg_func).reset_index()
-        except ValueError:
-            agg = chunk[val_cols].resample("M").agg(agg_func).reset_index()
         if not agg.empty:
             agg["Date"] = agg["Date"].dt.to_period("M").dt.to_timestamp()
         return agg
