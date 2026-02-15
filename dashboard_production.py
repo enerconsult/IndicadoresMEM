@@ -3,6 +3,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import datetime as dt
+import requests
 
 from utils.style import init_theme, toggle_theme, get_theme_config, load_css
 from utils.data import (
@@ -133,6 +134,49 @@ def _add_chart_stats(fig, df, value_col, label, color):
         hovertemplate=f"Prom {label}: {vavg:.2f}<extra></extra>",
     ))
 
+
+def _call_ceo_consultant(api_key, user_question, report_context, history):
+    system_prompt = (
+        "Eres un consultor senior del Mercado de Energía Mayorista (MEM) de Colombia. "
+        "Respondes exclusivamente temas de mercado de energía, operación del sistema, precios, "
+        "escasez, demanda, generación, embalses, aportes e implicaciones ejecutivas. "
+        "Debes usar primero el contexto del informe suministrado. "
+        "Si preguntan fuera de este dominio, responde brevemente que solo atiendes mercado de energía. "
+        "No inventes datos; si falta información, indícalo."
+    )
+
+    prior = []
+    for msg in history[-8:]:
+        if msg["role"] in ("user", "assistant"):
+            prior.append({"role": msg["role"], "content": msg["content"]})
+
+    messages = [
+        {"role": "system", "content": system_prompt + "\n\nContexto del informe:\n" + report_context},
+        *prior,
+        {"role": "user", "content": user_question},
+    ]
+
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": messages,
+        "temperature": 0.2,
+    }
+
+    res = requests.post(
+        "https://api.openai.com/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+        timeout=60,
+    )
+    data = res.json()
+    if not res.ok:
+        msg = data.get("error", {}).get("message", "Error al consultar el modelo.")
+        raise RuntimeError(msg)
+    return data["choices"][0]["message"]["content"]
+
 # ======================================================================
 # SIDEBAR
 # ======================================================================
@@ -159,7 +203,7 @@ with st.sidebar:
     st.markdown("### PRINCIPALES")
     selection = st.radio(
         "Navegación",
-        ["Resumen", "Informe MEM", "Explorador"],
+        ["Resumen", "Informe del CEO", "Explorador"],
         label_visibility="collapsed",
     )
     st.markdown("---")
@@ -598,8 +642,8 @@ if selection == "Resumen":
     _chart_hydro_contributions(df_apor, df_media)
 
 
-elif selection == "Informe MEM":
-    st.title("📝 Informe MEM")
+elif selection == "Informe del CEO":
+    st.title("📝 Informe del CEO")
     st.caption("Análisis automático del periodo seleccionado con semáforo y hallazgos operativos.")
     st.info(
         "El informe compara el periodo seleccionado contra el periodo anterior de igual duración "
@@ -748,6 +792,80 @@ elif selection == "Informe MEM":
             })
             st.markdown("### Evidencias del Periodo")
             st.dataframe(out, use_container_width=True, hide_index=True)
+
+    report_context = (
+        f"Periodo: {start_str} a {end_str}\n"
+        f"Estado general: {state}\n"
+        f"Precio bolsa promedio: {price_cur:.2f} COP/kWh\n"
+        f"Presión de mercado: {pressure_now:.2f}%\n"
+        f"Balance generación-demanda: {balance_cur:.2f} GWh\n"
+        f"Utilización embalse: {util_now:.2f}%\n"
+        f"Desvío de aportes: {hydro_dev_now:.2f}%\n"
+        f"Hallazgos: {' | '.join(findings)}"
+    )
+
+    st.markdown("### Chat de Análisis (Consultor MEM)")
+    st.caption(
+        "Consulta solo temas de mercado de energía. El asistente responde con base en este informe "
+        "y conocimiento experto del MEM."
+    )
+
+    if "ceo_api_key" not in st.session_state:
+        st.session_state.ceo_api_key = ""
+    if "ceo_chat_messages" not in st.session_state:
+        st.session_state.ceo_chat_messages = [
+            {
+                "role": "assistant",
+                "content": "Soy tu consultor del mercado de energía. Pregúntame sobre precios, escasez, demanda, generación o embalses de este informe.",
+            }
+        ]
+
+    with st.expander("Configurar API Key", expanded=(not bool(st.session_state.ceo_api_key))):
+        key_input = st.text_input(
+            "OpenAI API Key",
+            type="password",
+            value=st.session_state.ceo_api_key,
+            placeholder="sk-...",
+            key="ceo_key_input",
+        )
+        c_key_1, c_key_2 = st.columns(2)
+        if c_key_1.button("Guardar API Key", key="save_ceo_key"):
+            st.session_state.ceo_api_key = key_input.strip()
+            if st.session_state.ceo_api_key:
+                st.success("API Key guardada para esta sesión.")
+            else:
+                st.warning("Ingresa una API Key válida.")
+        if c_key_2.button("Limpiar API Key", key="clear_ceo_key"):
+            st.session_state.ceo_api_key = ""
+            st.warning("API Key eliminada de la sesión.")
+
+    for msg in st.session_state.ceo_chat_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    question = st.chat_input("Escribe tu pregunta de análisis del mercado...")
+    if question:
+        st.session_state.ceo_chat_messages.append({"role": "user", "content": question})
+        with st.chat_message("user"):
+            st.markdown(question)
+
+        if not st.session_state.ceo_api_key:
+            answer = "Primero configura tu API Key para activar el consultor."
+        else:
+            try:
+                with st.spinner("Analizando informe y mercado..."):
+                    answer = _call_ceo_consultant(
+                        st.session_state.ceo_api_key,
+                        question,
+                        report_context,
+                        st.session_state.ceo_chat_messages,
+                    )
+            except Exception as e:
+                answer = f"No pude completar la consulta: {e}"
+
+        st.session_state.ceo_chat_messages.append({"role": "assistant", "content": answer})
+        with st.chat_message("assistant"):
+            st.markdown(answer)
 
 
 elif selection == "Explorador":
