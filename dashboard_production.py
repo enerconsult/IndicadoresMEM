@@ -833,11 +833,25 @@ elif selection == "Informe del CEO":
 
     if "ceo_api_key" not in st.session_state:
         st.session_state.ceo_api_key = ""
+    current_period_key = f"{start_str}|{end_str}"
+    if "ceo_period_key" not in st.session_state:
+        st.session_state.ceo_period_key = current_period_key
     if "ceo_chat_messages" not in st.session_state:
         st.session_state.ceo_chat_messages = [
             {
                 "role": "assistant",
                 "content": "Listo. Soy tu consultor experto del MEM. Pregúntame sobre precios, escasez, demanda, generación, embalses o implicaciones ejecutivas del periodo.",
+            }
+        ]
+    elif st.session_state.ceo_period_key != current_period_key:
+        st.session_state.ceo_period_key = current_period_key
+        st.session_state.ceo_chat_messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    f"Periodo actualizado a {start_str} - {end_str}. "
+                    "Inicié un nuevo chat para evitar mezclar conversaciones."
+                ),
             }
         ]
 
@@ -869,6 +883,24 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_quick_q = "Con este estado del mercado, ¿qué decisión ejecutiva tomarías hoy?"
     if quick_col_3.button("Proyección 7 días", use_container_width=True):
         st.session_state.ceo_quick_q = "Dame una lectura ejecutiva para los próximos 7 días, con riesgos y recomendaciones."
+
+    action_col_1, action_col_2 = st.columns(2)
+    if action_col_1.button("Nuevo chat", use_container_width=True):
+        st.session_state.ceo_chat_messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    f"Nuevo chat iniciado para el periodo {start_str} - {end_str}. "
+                    "¿Qué deseas analizar del MEM?"
+                ),
+            }
+        ]
+        st.session_state.ceo_quick_q = ""
+        st.rerun()
+    if action_col_2.button("Limpiar historial", use_container_width=True):
+        st.session_state.ceo_chat_messages = []
+        st.session_state.ceo_quick_q = ""
+        st.rerun()
 
     st.markdown("""
     <div class="ceo-chat-shell">
@@ -927,6 +959,15 @@ elif selection == "Informe del CEO":
     if not question and "ceo_quick_q" in st.session_state and st.session_state.ceo_quick_q:
         question = st.session_state.ceo_quick_q
         st.session_state.ceo_quick_q = ""
+
+    if question:
+        last_user = None
+        for m in reversed(st.session_state.ceo_chat_messages):
+            if m.get("role") == "user":
+                last_user = m.get("content", "").strip()
+                break
+        if last_user and last_user == question.strip():
+            question = None
 
     if question:
         st.session_state.ceo_chat_messages.append({"role": "user", "content": question})
