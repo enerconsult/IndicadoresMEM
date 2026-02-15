@@ -1164,12 +1164,13 @@ elif selection == "Informe del CEO":
             
             # Fallback (if LLM didn't tag or tagged GENERAL but keywords are strong)
             if context_type == "general":
-                if "precio" in last_msg.lower() or "bolsa" in last_msg.lower():
-                    context_type = "precio"
-                elif "demanda" in last_msg.lower() or "consumo" in last_msg.lower():
-                    context_type = "demanda"
-                elif "embalse" in last_msg.lower() or "aportes" in last_msg.lower() or "hidrico" in last_msg.lower():
+                msg_lower = last_msg.lower()
+                if any(k in msg_lower for k in ["embalse", "aportes", "hidrico", "hidrologia", "reservas", "volumen", "nivel", "lluvia", "niño", "niña", "agua"]):
                     context_type = "hidro"
+                elif any(k in msg_lower for k in ["demanda", "consumo", "generacion", "termica", "energia requerida", "gwh"]):
+                    context_type = "demanda"
+                elif any(k in msg_lower for k in ["precio", "bolsa", "costo", "marginal", "kilovatio", "kwh", "$/kwh", "dinero", "tarifas"]):
+                    context_type = "precio"
             
             # Suggestion UI
             st.markdown(f"""
