@@ -1167,8 +1167,92 @@ elif selection == "Informe del CEO":
 
         st.session_state.ceo_chat_messages.append({"role": "assistant", "content": answer})
         st.rerun()
+    
+    # --- Chart Suggestions (After the last message if it is from assistant) ---
+    if st.session_state.ceo_chat_messages and st.session_state.ceo_chat_messages[-1]["role"] == "assistant":
+        last_msg = st.session_state.ceo_chat_messages[-1]["content"]
+        
+        # Determine context for chart
+        chart_type_to_show = None
+        if "precio" in last_msg.lower() or "bolsa" in last_msg.lower():
+            chart_type_to_show = "precio"
+        elif "demanda" in last_msg.lower() or "consumo" in last_msg.lower():
+            chart_type_to_show = "demanda"
+        elif "embalse" in last_msg.lower() or "aportes" in last_msg.lower() or "hidrico" in last_msg.lower():
+            chart_type_to_show = "hidro"
+        else:
+             chart_type_to_show = "precio" # Default
 
-elif selection == "Explorador":
+        st.markdown(f"""
+        <div style="margin-top:1rem;margin-bottom:0.5rem;font-size:0.8rem;color:{t['TEXT_SUB']};text-transform:uppercase;letter-spacing:0.05em;display:flex;align-items:center;gap:0.5rem;">
+            <span style="height:1px;background-color:{t['BORDER_COLOR']};flex-grow:1;"></span>
+            VISUALIZAR DATOS
+            <span style="height:1px;background-color:{t['BORDER_COLOR']};flex-grow:1;"></span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        c1, c2, c3 = st.columns(3)
+        if c1.button("📈 Línea de Tiempo", use_container_width=True):
+            st.session_state.ceo_chart_request = {"type": "line", "data": chart_type_to_show}
+        if c2.button("📊 Barras", use_container_width=True):
+             st.session_state.ceo_chart_request = {"type": "bar", "data": chart_type_to_show}
+        if c3.button("📉 Área", use_container_width=True):
+             st.session_state.ceo_chart_request = {"type": "area", "data": chart_type_to_show}
+
+    # --- Render Requested Chart ---
+    if "ceo_chart_request" in st.session_state and st.session_state.ceo_chart_request:
+        req = st.session_state.ceo_chart_request
+        chart_data_key = req.get("data")
+        chart_viz_type = req.get("type")
+        
+        # Resolve data source
+        df_viz = None
+        title_viz = ""
+        y_col_viz = "_value"
+        color_viz = t["COLOR_BLUE"]
+
+        if chart_data_key == "precio":
+            df_viz = calculate_periodicity(df_bolsa, "1D", "mean")
+            title_viz = "Precio de Bolsa (COP/kWh)"
+            color_viz = t["COLOR_ORANGE"]
+            if df_viz is not None:
+                 y_col_viz = get_value_col(df_viz)
+        elif chart_data_key == "demanda":
+            df_viz = calculate_periodicity(df_demanda, "1D", "sum")
+            title_viz = "Demanda Comercial (kWh)"
+            color_viz = t["COLOR_BLUE"]
+            if df_viz is not None:
+                y_col_viz = get_value_col(df_viz)
+        elif chart_data_key == "hidro":
+            df_viz = calculate_periodicity(df_apor, "1D", "sum")
+            title_viz = "Aportes Hídricos (kWh)"
+            color_viz = t["COLOR_BLUE_DARK"]
+            if df_viz is not None:
+                y_col_viz = get_value_col(df_viz)
+
+        if df_viz is not None and not df_viz.empty:
+            st.markdown(f"#### {title_viz}")
+            fig_viz = None
+            if chart_viz_type == "line":
+                fig_viz = px.line(df_viz, x="Date", y=y_col_viz, title=None)
+                fig_viz.update_traces(line_color=color_viz, line_width=3)
+            elif chart_viz_type == "bar":
+                 fig_viz = px.bar(df_viz, x="Date", y=y_col_viz, title=None)
+                 fig_viz.update_traces(marker_color=color_viz)
+            elif chart_viz_type == "area":
+                 fig_viz = px.area(df_viz, x="Date", y=y_col_viz, title=None)
+                 fig_viz.update_traces(line_color=color_viz, fillcolor=color_viz.replace(")", ",0.3)").replace("rgb", "rgba"))
+
+            if fig_viz:
+                st.plotly_chart(style_fig(fig_viz), use_container_width=True)
+            
+            # Close button
+            if st.button("Cerrar Gráfico", key="close_chart_viz"):
+                st.session_state.ceo_chart_request = None
+                st.rerun()
+        else:
+             st.info("No hay datos disponibles para visualizar en este contexto.")
+
     st.title("🔍 Explorador Avanzado")
 
     with st.spinner("Cargando catálogo..."):
