@@ -447,6 +447,11 @@ if selection == "Resumen":
 elif selection == "Riesgo de Escasez":
     st.title("⚠️ Riesgo de Escasez")
     st.caption("Monitor de presión de precios y cercanía a umbrales de escasez.")
+    st.info(
+        "Este gráfico muestra el Índice de Presión del Mercado, comparando el Precio de Bolsa "
+        "frente al Precio de Escasez Superior. Cuando el índice se acerca o supera 100%, "
+        "el sistema entra en una zona de mayor tensión y riesgo operativo."
+    )
 
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
@@ -464,6 +469,11 @@ elif selection == "Riesgo de Escasez":
 elif selection == "Hidrología":
     st.title("💧 Hidrología del Sistema")
     st.caption("Uso del embalse y comportamiento de aportes frente al promedio histórico.")
+    st.info(
+        "Este gráfico muestra la Eficiencia Hidrológica del Sistema: cómo se comportan los "
+        "aportes hídricos frente a su media histórica y cómo evoluciona el uso de la capacidad "
+        "de embalse en el periodo seleccionado."
+    )
 
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
