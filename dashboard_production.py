@@ -334,11 +334,29 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### PRINCIPALES")
+    
+    nav_options = ["Resumen"]
+    if "shared_data" in st.session_state:
+        nav_options.append("Informe del CEO")
+    else:
+        # Optional: Show locked option or just hide it. 
+        # User asked for "no debe ser accesible". Hiding it is the safest "not accessible" way.
+        # But if they want to know *why*, maybe show it disabled?
+        # Streamlit doesn't support disabled radio options easily.
+        # Let's show it but with a lock icon and handle the block in the view (which we already did).
+        # Actually, the user said "mira el informe del ceo no debe ser accesible hasta no cargar los datos".
+        # Hiding it is the most robust compliance.
+        pass
+
     selection = st.radio(
         "Navegación",
-        ["Resumen", "Informe del CEO", "Explorador"],
+        nav_options,
         label_visibility="collapsed",
     )
+    
+    # If user was on CEO report but page reloaded and data lost, default back to Resumen
+    if selection == "Informe del CEO" and "shared_data" not in st.session_state:
+        st.experimental_rerun() 
     st.markdown("---")
 
     # --- Gemini API Key (always visible in sidebar) ---
