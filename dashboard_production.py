@@ -749,6 +749,7 @@ if selection == "Resumen":
 
     with st.spinner("Actualizando indicadores..."):
         data = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
+        st.session_state.shared_data = data
 
     df_bolsa       = data.get("PrecBolsNaci")
     df_escasez     = data.get("PrecEsca")
@@ -994,8 +995,14 @@ elif selection == "Informe del CEO":
     # --- Data context (backend unchanged) ---
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
-    with st.spinner("Cargando datos del mercado..."):
-        cur = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
+    # Check if data was loaded in Resumen
+    if "shared_data" not in st.session_state:
+        st.warning("⚠️ Para acceder al consultor, primero debes cargar los datos en la pestaña **Resumen**.")
+        st.info("Ve a la sección 'Resumen' en el menú lateral para inicializar el tablero.")
+        st.stop()
+    
+    cur = st.session_state.shared_data
+    
     market_cur = _build_market_risk_frame(
         cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), "RANGE")
     hydro_cur = _build_hydro_frame(
