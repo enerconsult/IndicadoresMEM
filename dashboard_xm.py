@@ -316,13 +316,13 @@ def calculate_periodicity(df, period, agg_func='sum'):
         cols_to_resample = val_cols
         
         if agg_func == 'sum':
-            df_agg = df_filtered[cols_to_resample].resample('M').sum().reset_index()
+            df_agg = df_filtered[cols_to_resample].resample('ME').sum().reset_index()
         else:
-            df_agg = df_filtered[cols_to_resample].resample('M').mean().reset_index()
+            df_agg = df_filtered[cols_to_resample].resample('ME').mean().reset_index()
             
         # Shift date to start of month for better chart alignment (User reported visual shift)
         if not df_agg.empty:
-            df_agg['Date'] = df_agg['Date'].dt.to_period('M').dt.to_timestamp()
+            df_agg['Date'] = df_agg['Date'].dt.to_period('ME').dt.to_timestamp()
             
         return df_agg
     

@@ -13,6 +13,25 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
+
+# Fix: pandas 2.2+ deprecated 'M' frequency, pydataxm still uses it
+# Monkey-patch to convert 'M' to 'ME' in date_range and period_range
+_orig_date_range = pd.date_range
+_orig_period_range = pd.period_range
+
+def _patched_date_range(*args, **kwargs):
+    if 'freq' in kwargs and kwargs['freq'] == 'M':
+        kwargs['freq'] = 'ME'
+    return _orig_date_range(*args, **kwargs)
+
+def _patched_period_range(*args, **kwargs):
+    if 'freq' in kwargs and kwargs['freq'] == 'M':
+        kwargs['freq'] = 'ME'
+    return _orig_period_range(*args, **kwargs)
+
+pd.date_range = _patched_date_range
+pd.period_range = _patched_period_range
+
 from pydataxm.pydataxm import ReadDB
 
 # ---------------------------------------------------------------------------
