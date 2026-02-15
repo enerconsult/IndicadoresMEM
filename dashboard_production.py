@@ -341,8 +341,46 @@ with st.sidebar:
     )
     st.markdown("---")
 
+    # --- Gemini API Key (always visible in sidebar) ---
+    if "ceo_api_key" not in st.session_state:
+        st.session_state.ceo_api_key = ""
+    if "ceo_key_input" not in st.session_state:
+        st.session_state.ceo_key_input = st.session_state.ceo_api_key
+    if "ceo_reset_key_input" not in st.session_state:
+        st.session_state.ceo_reset_key_input = False
+
+    if st.session_state.ceo_reset_key_input:
+        st.session_state.ceo_key_input = ""
+        st.session_state.ceo_reset_key_input = False
+
+    st.markdown("### 🔑 API KEY")
+    st.text_input(
+        "Gemini API Key",
+        type="password",
+        placeholder="AIza...",
+        key="ceo_key_input",
+        label_visibility="collapsed",
+    )
+    sb_k1, sb_k2 = st.columns(2)
+    if sb_k1.button("Guardar", key="save_ceo_key", use_container_width=True):
+        saved = (st.session_state.ceo_key_input or "").strip()
+        st.session_state.ceo_api_key = saved
+        if saved:
+            st.success("Activa")
+        else:
+            st.warning("Vacia")
+    if sb_k2.button("Limpiar", key="clear_ceo_key", use_container_width=True):
+        st.session_state.ceo_api_key = ""
+        st.session_state.ceo_reset_key_input = True
+        st.rerun()
+    if st.session_state.ceo_api_key:
+        st.caption("✅ API Key activa")
+    else:
+        st.caption("⚠️ Sin API Key")
+
+    st.markdown("---")
     st.markdown("""
-    <div style="margin-top:2rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.1);
+    <div style="margin-top:1rem;padding-top:0.5rem;
                 display:flex;align-items:center;gap:0.75rem;">
         <div style="width:32px;height:32px;background-color:rgba(255,255,255,0.1);
                     border-radius:50%;display:flex;align-items:center;justify-content:center;">📊</div>
@@ -777,131 +815,111 @@ if selection == "Resumen":
 
 elif selection == "Informe del CEO":
     # ------------------------------------------------------------------
-    # ChatGPT-style chat UI using native Streamlit chat components
+    # ChatGPT-style chat — clean, full-width, theme-aware
     # ------------------------------------------------------------------
     t = get_theme_config()
     is_dark = st.session_state.get("theme", "dark") == "dark"
 
-    # Theme-aware colours
-    _hdr_color = "#60a5fa" if is_dark else "#2563eb"
-    _sub_color = t["TEXT_SUB"]
-    _pill_bg = "rgba(96,165,250,0.12)" if is_dark else "rgba(37,99,235,0.06)"
-    _pill_border = "rgba(96,165,250,0.25)" if is_dark else "rgba(37,99,235,0.12)"
-    _pill_text = "#93c5fd" if is_dark else "#475569"
-    _msg_bg = "rgba(30,41,59,0.55)" if is_dark else "#ffffff"
-    _msg_border = "rgba(255,255,255,0.08)" if is_dark else "rgba(0,0,0,0.06)"
-    _input_bg = "#1e293b" if is_dark else "#f1f5f9"
-    _input_border = "rgba(96,165,250,0.3)" if is_dark else "#cbd5e1"
-    _input_text = "#f1f5f9" if is_dark else "#1e293b"
+    _accent = "#60a5fa" if is_dark else "#2563eb"
+    _text = t["TEXT_COLOR"]
+    _sub = t["TEXT_SUB"]
+    _card = "rgba(30,41,59,0.50)" if is_dark else "#ffffff"
+    _border = "rgba(255,255,255,0.07)" if is_dark else "rgba(0,0,0,0.06)"
+    _user_bg = "rgba(96,165,250,0.10)" if is_dark else "rgba(37,99,235,0.05)"
 
     st.markdown(f"""
     <style>
-      /* ---- Chat header ---- */
-      .mem-chat-header {{
-        text-align: center;
-        padding: 1rem 0 0.4rem;
-      }}
-      .mem-chat-header h2 {{
-        margin: 0; font-size: 1.6rem; font-weight: 800;
-        color: {_hdr_color} !important;
-        -webkit-text-fill-color: {_hdr_color} !important;
-        letter-spacing: -0.02em;
-      }}
-      .mem-chat-header p {{
-        color: {_sub_color}; font-size: 0.8rem; margin: 0.15rem 0 0;
-      }}
-
-      /* ---- Status pill bar ---- */
-      .mem-status-bar {{
-        display: flex; justify-content: center; flex-wrap: wrap;
-        gap: 0.5rem; padding: 0.45rem 0.8rem; border-radius: 10px;
-        background: {_pill_bg};
-        border: 1px solid {_pill_border};
-        margin: 0 auto 1rem; max-width: 620px;
-      }}
-      .mem-pill {{
-        font-size: 0.7rem; font-weight: 600; padding: 3px 10px;
-        border-radius: 999px; display: inline-flex; align-items: center; gap: 5px;
-        color: {_pill_text};
-      }}
-      .mem-pill .dot {{
-        width: 7px; height: 7px; border-radius: 50%; display: inline-block;
-      }}
-      .dot-green  {{ background: #22c55e; }}
-      .dot-yellow {{ background: #eab308; }}
-      .dot-red    {{ background: #ef4444; }}
-
       /* ---- Chat messages ---- */
       div[data-testid="stChatMessage"] {{
-        border-radius: 16px !important;
-        padding: 0.9rem 1.1rem !important;
-        background: {_msg_bg} !important;
-        border: 1px solid {_msg_border} !important;
-        margin-bottom: 0.5rem !important;
+        border-radius: 18px !important;
+        padding: 1rem 1.2rem !important;
+        background: {_card} !important;
+        border: 1px solid {_border} !important;
+        margin-bottom: 0.6rem !important;
+        backdrop-filter: blur(8px);
       }}
       div[data-testid="stChatMessage"] p,
       div[data-testid="stChatMessage"] li,
-      div[data-testid="stChatMessage"] span {{
-        color: {t['TEXT_COLOR']} !important;
+      div[data-testid="stChatMessage"] span,
+      div[data-testid="stChatMessage"] td,
+      div[data-testid="stChatMessage"] th {{
+        color: {_text} !important;
+        font-size: 0.92rem !important;
+        line-height: 1.6 !important;
       }}
       div[data-testid="stChatMessage"] strong {{
-        color: {_hdr_color} !important;
+        color: {_accent} !important;
+      }}
+      div[data-testid="stChatMessage"] h1,
+      div[data-testid="stChatMessage"] h2,
+      div[data-testid="stChatMessage"] h3 {{
+        color: {_accent} !important;
+        font-size: 1rem !important;
+        margin-top: 0.6rem !important;
+      }}
+      div[data-testid="stChatMessage"] code {{
+        background: {'rgba(255,255,255,0.06)' if is_dark else 'rgba(0,0,0,0.04)'} !important;
+        color: {_text} !important;
+        border-radius: 4px !important;
+        padding: 1px 5px !important;
       }}
 
       /* ---- Chat input bar ---- */
       div[data-testid="stChatInput"] {{
-        background: transparent !important;
-        border-top: 1px solid {_msg_border} !important;
-        padding-top: 0.6rem !important;
+        border-top: 1px solid {_border} !important;
       }}
       div[data-testid="stChatInput"] textarea {{
-        background: {_input_bg} !important;
-        border: 1px solid {_input_border} !important;
+        background: {'#1e293b' if is_dark else '#f8fafc'} !important;
+        border: 1.5px solid {'rgba(96,165,250,0.35)' if is_dark else '#cbd5e1'} !important;
         border-radius: 24px !important;
-        color: {_input_text} !important;
+        color: {_text} !important;
         font-size: 0.92rem !important;
+        padding: 0.6rem 1rem !important;
+      }}
+      div[data-testid="stChatInput"] textarea:focus {{
+        border-color: {_accent} !important;
+        box-shadow: 0 0 0 2px {'rgba(96,165,250,0.2)' if is_dark else 'rgba(37,99,235,0.15)'} !important;
       }}
       div[data-testid="stChatInput"] textarea::placeholder {{
-        color: {_sub_color} !important;
+        color: {_sub} !important;
       }}
       div[data-testid="stChatInput"] button {{
-        background: {_hdr_color} !important;
-        color: #ffffff !important;
+        background: {_accent} !important;
+        color: #fff !important;
         border-radius: 50% !important;
       }}
+      div[data-testid="stChatInput"] button:hover {{
+        filter: brightness(1.15) !important;
+      }}
 
-      /* ---- API key section ---- */
-      .mem-key-section div[data-testid="stExpander"] {{
-        background: {_msg_bg} !important;
-        border: 1px solid {_msg_border} !important;
-        border-radius: 14px !important;
-        margin-bottom: 1rem !important;
+      /* ---- Status pills ---- */
+      .mem-status {{
+        display: flex; justify-content: center; flex-wrap: wrap;
+        gap: 0.4rem; margin: 0.2rem auto 1.2rem; max-width: 620px;
       }}
-      .mem-key-section div[data-testid="stExpander"] summary {{
-        color: {_sub_color} !important;
-        font-size: 0.82rem !important;
+      .mem-status .pill {{
+        font-size: 0.68rem; font-weight: 600; padding: 2px 10px;
+        border-radius: 999px; display: inline-flex; align-items: center; gap: 4px;
+        color: {_sub}; background: {'rgba(255,255,255,0.05)' if is_dark else 'rgba(0,0,0,0.04)'};
+        border: 1px solid {_border};
       }}
-      .mem-key-section div[data-testid="stExpander"] div[data-testid="stTextInput"] input {{
-        background: {_input_bg} !important;
-        border: 1px solid {_input_border} !important;
-        color: {_input_text} !important;
-        border-radius: 10px !important;
-      }}
-      .mem-key-section button {{
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        font-size: 0.8rem !important;
-      }}
+      .pill .d {{ width: 6px; height: 6px; border-radius: 50%; display: inline-block; }}
+      .d-ok   {{ background: #22c55e; }}
+      .d-warn {{ background: #eab308; }}
+      .d-crit {{ background: #ef4444; }}
     </style>
     """, unsafe_allow_html=True)
 
-    # --- Data context (backend logic unchanged) ---
+    # --- Data context (backend unchanged) ---
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
-    with st.spinner("Preparando contexto del periodo para el consultor..."):
+    with st.spinner("Cargando datos del mercado..."):
         cur = fetch_metrics_parallel(SUMMARY_METRICS, start_str, end_str)
-    market_cur = _build_market_risk_frame(cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), "RANGE")
-    hydro_cur = _build_hydro_frame(cur.get("CapaUtilDiarEner"), cur.get("VoluUtilDiarEner"), cur.get("AporEner"), cur.get("AporEnerMediHist"), "RANGE")
+    market_cur = _build_market_risk_frame(
+        cur.get("PrecBolsNaci"), cur.get("PrecEsca"), cur.get("PrecEscaSup"), "RANGE")
+    hydro_cur = _build_hydro_frame(
+        cur.get("CapaUtilDiarEner"), cur.get("VoluUtilDiarEner"),
+        cur.get("AporEner"), cur.get("AporEnerMediHist"), "RANGE")
 
     pressure_now = util_now = hydro_dev_now = 0.0
     price_cur = 0.0
@@ -941,13 +959,7 @@ elif selection == "Informe del CEO":
         f"Hallazgos: {' | '.join(findings)}"
     )
 
-    # --- Session state init ---
-    if "ceo_api_key" not in st.session_state:
-        st.session_state.ceo_api_key = ""
-    if "ceo_key_input" not in st.session_state:
-        st.session_state.ceo_key_input = st.session_state.ceo_api_key
-    if "ceo_reset_key_input" not in st.session_state:
-        st.session_state.ceo_reset_key_input = False
+    # --- Session state ---
     current_period_key = f"{start_str}|{end_str}"
     if "ceo_period_key" not in st.session_state:
         st.session_state.ceo_period_key = current_period_key
@@ -955,10 +967,16 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_chat_messages = [
             {
                 "role": "assistant",
-                "content": "Hola, soy tu **Consultor MEM AI**. Tengo acceso a los indicadores "
-                           "del mercado electrico colombiano para el periodo seleccionado.\n\n"
-                           "Preguntame sobre precios de bolsa, escasez, demanda, generacion, "
-                           "embalses o aportes hidricos.",
+                "content": (
+                    "Hola, soy tu **Consultor MEM AI**.\n\n"
+                    "Tengo acceso a los indicadores del mercado electrico colombiano "
+                    "para el periodo que seleccionaste en el panel lateral.\n\n"
+                    "Puedes preguntarme sobre:\n"
+                    "- **Precios** de bolsa y escasez\n"
+                    "- **Demanda** comercial y generacion\n"
+                    "- **Embalses** y aportes hidricos\n"
+                    "- **Riesgos** del mercado"
+                ),
             }
         ]
     elif st.session_state.ceo_period_key != current_period_key:
@@ -966,98 +984,57 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_chat_messages = [
             {
                 "role": "assistant",
-                "content": f"Periodo actualizado a **{start_str}** - **{end_str}**. "
+                "content": f"Periodo actualizado a **{start_str}** / **{end_str}**. "
                            "Los datos han sido recargados. Que deseas analizar?",
             }
         ]
 
-    if st.session_state.ceo_reset_key_input:
-        st.session_state.ceo_key_input = ""
-        st.session_state.ceo_reset_key_input = False
-
-    # --- Header ---
+    # --- Status pills ---
+    dot_cls = "d-ok" if state == "NORMAL" else ("d-warn" if state == "ALERTA" else "d-crit")
     st.markdown(f"""
-    <div class="mem-chat-header">
-      <h2>Consultor MEM AI</h2>
-      <p style="color:{_sub_color};">Analisis inteligente del mercado electrico colombiano</p>
+    <div class="mem-status">
+      <span class="pill"><span class="d {dot_cls}"></span> {state}</span>
+      <span class="pill">{start_str} &rarr; {end_str}</span>
+      <span class="pill">Presion {pressure_now:.1f}%</span>
+      <span class="pill">Embalse {util_now:.1f}%</span>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Status bar ---
-    dot_cls = "dot-green" if state == "NORMAL" else ("dot-yellow" if state == "ALERTA" else "dot-red")
-    st.markdown(f"""
-    <div class="mem-status-bar">
-      <span class="mem-pill mem-pill-muted"><span class="dot {dot_cls}"></span>{state}</span>
-      <span class="mem-pill mem-pill-muted">{start_str} &rarr; {end_str}</span>
-      <span class="mem-pill mem-pill-muted">Presion {pressure_now:.1f}%</span>
-      <span class="mem-pill mem-pill-muted">Embalse {util_now:.1f}%</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # --- API Key config ---
-    with st.container():
-        st.markdown('<div class="mem-key-section">', unsafe_allow_html=True)
-        with st.expander("Configurar API Key Gemini", expanded=(not bool(st.session_state.ceo_api_key))):
-            st.text_input(
-                "Gemini API Key",
-                type="password",
-                placeholder="AIza...",
-                key="ceo_key_input",
-                help="Pega tu API Key de Google AI Studio y presiona Guardar.",
-            )
-            c_key_1, c_key_2, _ = st.columns([1, 1, 2])
-            if c_key_1.button("Guardar", key="save_ceo_key", use_container_width=True):
-                saved = (st.session_state.ceo_key_input or "").strip()
-                st.session_state.ceo_api_key = saved
-                if saved:
-                    st.success("API Key activa.")
-                else:
-                    st.warning("Ingresa una API Key valida.")
-            if c_key_2.button("Limpiar", key="clear_ceo_key", use_container_width=True):
-                st.session_state.ceo_api_key = ""
-                st.session_state.ceo_reset_key_input = True
-                st.rerun()
-            if st.session_state.ceo_api_key:
-                st.caption("API Key activa en esta sesion.")
-            else:
-                st.caption("Sin API Key configurada.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    # --- Chat history (native st.chat_message) ---
+    # --- Chat history ---
     for msg in st.session_state.ceo_chat_messages:
         role = msg.get("role", "assistant")
-        avatar = "\u26a1" if role == "assistant" else "\U0001f464"
-        with st.chat_message(role, avatar=avatar):
+        with st.chat_message(role, avatar="\u26a1" if role == "assistant" else "\U0001f464"):
             st.markdown(msg.get("content", ""))
 
-    # --- Chat input (native st.chat_input - ChatGPT-style sticky bottom) ---
-    question = st.chat_input("Escribe tu consulta sobre el MEM...")
+    # --- Chat input ---
+    question = st.chat_input(
+        "Pregunta sobre precios, demanda, embalses..."
+        if st.session_state.ceo_api_key
+        else "Configura tu API Key en el panel lateral para comenzar"
+    )
 
     if question:
-        question = question.strip()
-        if not question:
-            question = None
+        question = question.strip() or None
 
-    # Deduplicate: skip if identical to last user message
+    # Deduplicate
     if question:
-        last_user = None
         for m in reversed(st.session_state.ceo_chat_messages):
             if m.get("role") == "user":
-                last_user = m.get("content", "").strip()
+                if m.get("content", "").strip() == question:
+                    question = None
                 break
-        if last_user and last_user == question:
-            question = None
 
     if question:
-        # Render the user message immediately
         st.session_state.ceo_chat_messages.append({"role": "user", "content": question})
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar="\U0001f464"):
             st.markdown(question)
 
-        # Generate assistant response
         with st.chat_message("assistant", avatar="\u26a1"):
             if not st.session_state.ceo_api_key:
-                answer = "Configura tu **API Key de Gemini** en el panel superior para activar el consultor."
+                answer = (
+                    "Para activar el consultor, configura tu **API Key de Gemini** "
+                    "en el panel lateral izquierdo (seccion API KEY)."
+                )
                 st.markdown(answer)
             else:
                 with st.spinner("Analizando..."):
