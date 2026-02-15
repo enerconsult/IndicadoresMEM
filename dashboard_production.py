@@ -1168,90 +1168,148 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_chat_messages.append({"role": "assistant", "content": answer})
         st.rerun()
     
-    # --- Chart Suggestions (After the last message if it is from assistant) ---
+    # --- Context-Aware Chart Generation ---
     if st.session_state.ceo_chat_messages and st.session_state.ceo_chat_messages[-1]["role"] == "assistant":
         last_msg = st.session_state.ceo_chat_messages[-1]["content"]
         
-        # Determine context for chart
-        chart_type_to_show = None
+        # 1. Determine Context
+        context_type = "general"
         if "precio" in last_msg.lower() or "bolsa" in last_msg.lower():
-            chart_type_to_show = "precio"
+            context_type = "precio"
         elif "demanda" in last_msg.lower() or "consumo" in last_msg.lower():
-            chart_type_to_show = "demanda"
+            context_type = "demanda"
         elif "embalse" in last_msg.lower() or "aportes" in last_msg.lower() or "hidrico" in last_msg.lower():
-            chart_type_to_show = "hidro"
-        else:
-             chart_type_to_show = "precio" # Default
+            context_type = "hidro"
 
+        # 2. Suggestion UI
         st.markdown(f"""
-        <div style="margin-top:1rem;margin-bottom:0.5rem;font-size:0.8rem;color:{t['TEXT_SUB']};text-transform:uppercase;letter-spacing:0.05em;display:flex;align-items:center;gap:0.5rem;">
-            <span style="height:1px;background-color:{t['BORDER_COLOR']};flex-grow:1;"></span>
-            VISUALIZAR DATOS
-            <span style="height:1px;background-color:{t['BORDER_COLOR']};flex-grow:1;"></span>
+        <div style="margin-top:1rem;margin-bottom:0.5rem;text-align:center;">
+             <span style="font-size:0.85rem;color:{t['TEXT_SUB']};margin-right:0.5rem;">
+                 ¿Quieres profundizar en estos datos?
+             </span>
         </div>
         """, unsafe_allow_html=True)
-        
-        c1, c2, c3 = st.columns(3)
-        if c1.button("📈 Línea de Tiempo", use_container_width=True):
-            st.session_state.ceo_chart_request = {"type": "line", "data": chart_type_to_show}
-        if c2.button("📊 Barras", use_container_width=True):
-             st.session_state.ceo_chart_request = {"type": "bar", "data": chart_type_to_show}
-        if c3.button("📉 Área", use_container_width=True):
-             st.session_state.ceo_chart_request = {"type": "area", "data": chart_type_to_show}
 
-    # --- Render Requested Chart ---
+        if st.button(f"📊 Generar Gráficos de {context_type.capitalize()}", key="btn_gen_charts", use_container_width=True):
+             st.session_state.ceo_chart_request = {"context": context_type, "timestamp": dt.datetime.now().timestamp()}
+    
+    # --- Render Auto-Generated Charts ---
     if "ceo_chart_request" in st.session_state and st.session_state.ceo_chart_request:
-        req = st.session_state.ceo_chart_request
-        chart_data_key = req.get("data")
-        chart_viz_type = req.get("type")
+        ctx = st.session_state.ceo_chart_request.get("context", "general")
         
-        # Resolve data source
-        df_viz = None
-        title_viz = ""
-        y_col_viz = "_value"
-        color_viz = t["COLOR_BLUE"]
-
-        if chart_data_key == "precio":
-            df_viz = calculate_periodicity(df_bolsa, "1D", "mean")
-            title_viz = "Precio de Bolsa (COP/kWh)"
-            color_viz = t["COLOR_ORANGE"]
-            if df_viz is not None:
-                 y_col_viz = get_value_col(df_viz)
-        elif chart_data_key == "demanda":
-            df_viz = calculate_periodicity(df_demanda, "1D", "sum")
-            title_viz = "Demanda Comercial (kWh)"
-            color_viz = t["COLOR_BLUE"]
-            if df_viz is not None:
-                y_col_viz = get_value_col(df_viz)
-        elif chart_data_key == "hidro":
-            df_viz = calculate_periodicity(df_apor, "1D", "sum")
-            title_viz = "Aportes Hídricos (kWh)"
-            color_viz = t["COLOR_BLUE_DARK"]
-            if df_viz is not None:
-                y_col_viz = get_value_col(df_viz)
-
-        if df_viz is not None and not df_viz.empty:
-            st.markdown(f"#### {title_viz}")
-            fig_viz = None
-            if chart_viz_type == "line":
-                fig_viz = px.line(df_viz, x="Date", y=y_col_viz, title=None)
-                fig_viz.update_traces(line_color=color_viz, line_width=3)
-            elif chart_viz_type == "bar":
-                 fig_viz = px.bar(df_viz, x="Date", y=y_col_viz, title=None)
-                 fig_viz.update_traces(marker_color=color_viz)
-            elif chart_viz_type == "area":
-                 fig_viz = px.area(df_viz, x="Date", y=y_col_viz, title=None)
-                 fig_viz.update_traces(line_color=color_viz, fillcolor=color_viz.replace(")", ",0.3)").replace("rgb", "rgba"))
-
-            if fig_viz:
-                st.plotly_chart(style_fig(fig_viz), use_container_width=True)
+        st.markdown(f"### 📊 Análisis Gráfico: {ctx.capitalize()}")
+        
+        # Prepare DataFrames based on context (Reusing global DFs loaded in Summary)
+        # Note: Using '1D' periodicity for charts to be granular
+        
+        g1, g2, g3 = st.columns(3)
+        
+        # --- LOGIC: PRECIO ---
+        if ctx == "precio":
+            # Chart 1: Evolution Line
+            df_p = calculate_periodicity(df_bolsa, "1D", "mean")
+            if df_p is not None:
+                fig1 = px.line(df_p, x="Date", y=get_value_col(df_p), title="Evolución Precio Bolsa")
+                fig1.update_traces(line_color=t["COLOR_ORANGE"], line_width=2)
+                g1.plotly_chart(style_fig(fig1), use_container_width=True)
             
-            # Close button
-            if st.button("Cerrar Gráfico", key="close_chart_viz"):
-                st.session_state.ceo_chart_request = None
-                st.rerun()
+            # Chart 2: Distribution/Histogram
+            if df_p is not None:
+                fig2 = px.histogram(df_p, x=get_value_col(df_p), title="Distribución de Precios")
+                fig2.update_traces(marker_color=t["COLOR_ORANGE"], opacity=0.7)
+                g2.plotly_chart(style_fig(fig2), use_container_width=True)
+
+            # Chart 3: Price vs Scarcity (Contextual)
+            df_esc = calculate_periodicity(df_escasez, "1D", "mean")
+            if df_p is not None and df_esc is not None:
+                fig3 = go.Figure()
+                fig3.add_trace(go.Scatter(x=df_p["Date"], y=df_p[get_value_col(df_p)], name="Bolsa", line=dict(color=t["COLOR_ORANGE"])))
+                fig3.add_trace(go.Scatter(x=df_esc["Date"], y=df_esc[get_value_col(df_esc)], name="Escasez", line=dict(color=t["COLOR_BLUE_DARK"], dash="dot")))
+                fig3.update_layout(title="Precio vs Escasez")
+                g3.plotly_chart(style_fig(fig3), use_container_width=True)
+
+        # --- LOGIC: DEMANDA ---
+        elif ctx == "demanda":
+             # Chart 1: Demand Evolution
+            df_d = calculate_periodicity(df_demanda, "1D", "sum")
+            if df_d is not None:
+                vcol = get_value_col(df_d)
+                fig1 = px.area(df_d, x="Date", y=vcol, title="Evolución Demanda")
+                fig1.update_traces(line_color=t["COLOR_BLUE"], fillcolor="rgba(59, 130, 246, 0.2)")
+                g1.plotly_chart(style_fig(fig1), use_container_width=True)
+            
+            # Chart 2: Weekly Pattern (Bar)
+            if df_d is not None:
+                 df_d["Weekday"] = pd.to_datetime(df_d["Date"]).dt.day_name()
+                 # Agrupar por día de la semana para ver patrón
+                 df_w = df_d.groupby("Weekday")[vcol].mean().reindex(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]).reset_index()
+                 fig2 = px.bar(df_w, x="Weekday", y=vcol, title="Perfil Semanal Promedio")
+                 fig2.update_traces(marker_color=t["COLOR_BLUE"])
+                 g2.plotly_chart(style_fig(fig2), use_container_width=True)
+
+            # Chart 3: Demanda vs Gen
+            df_g = calculate_periodicity(df_gen, "1D", "sum")
+            if df_d is not None and df_g is not None:
+                 fig3 = go.Figure()
+                 fig3.add_trace(go.Scatter(x=df_d["Date"], y=df_d[get_value_col(df_d)], name="Demanda", fill='tozeroy'))
+                 fig3.add_trace(go.Scatter(x=df_g["Date"], y=df_g[get_value_col(df_g)], name="Generación"))
+                 fig3.update_layout(title="Demanda vs Generación")
+                 g3.plotly_chart(style_fig(fig3), use_container_width=True)
+
+        # --- LOGIC: HIDRO (Embalses) ---
+        elif ctx == "hidro":
+            # Chart 1: Volumen Útil
+            df_v = calculate_periodicity(df_vol, "1D", "mean")
+            if df_v is not None:
+                fig1 = px.line(df_v, x="Date", y=get_value_col(df_v), title="Volumen Útil Embalse")
+                fig1.update_traces(line_color="#22c55e", fill='tozeroy', fillcolor="rgba(34, 197, 94, 0.1)") # Greenish
+                g1.plotly_chart(style_fig(fig1), use_container_width=True)
+
+            # Chart 2: Aportes vs Media
+            df_a = calculate_periodicity(df_apor, "1D", "sum")
+            df_m = calculate_periodicity(df_media, "1D", "sum")
+            if df_a is not None and df_m is not None:
+                fig2 = go.Figure()
+                fig2.add_trace(go.Bar(x=df_a["Date"], y=df_a[get_value_col(df_a)], name="Aportes", marker_color=t["COLOR_BLUE"]))
+                fig2.add_trace(go.Scatter(x=df_m["Date"], y=df_m[get_value_col(df_m)], name="Media Hist", line=dict(color=t["COLOR_ORANGE"])))
+                fig2.update_layout(title="Aportes Hídricos vs Media")
+                g2.plotly_chart(style_fig(fig2), use_container_width=True)
+
+            # Chart 3: Capacidad vs Volumen
+            df_c = calculate_periodicity(df_cap, "1D", "mean")
+            if df_v is not None and df_c is not None:
+                fig3 = go.Figure()
+                fig3.add_trace(go.Scatter(x=df_c["Date"], y=df_c[get_value_col(df_c)], name="Capacidad Total", line=dict(dash='dot')))
+                fig3.add_trace(go.Scatter(x=df_v["Date"], y=df_v[get_value_col(df_v)], name="Volumen Actual", fill='tonexty'))
+                fig3.update_layout(title="Nivel de Llenado")
+                g3.plotly_chart(style_fig(fig3), use_container_width=True)
+
+        # --- LOGIC: GENERAL (Mix) ---
         else:
-             st.info("No hay datos disponibles para visualizar en este contexto.")
+             # Chart 1: Price
+            df_p = calculate_periodicity(df_bolsa, "1D", "mean")
+            if df_p is not None:
+                 fig1 = px.line(df_p, x="Date", y=get_value_col(df_p), title="Precio Bolsa")
+                 fig1.update_traces(line_color=t["COLOR_ORANGE"])
+                 g1.plotly_chart(style_fig(fig1), use_container_width=True)
+            
+            # Chart 2: Demand
+            df_d = calculate_periodicity(df_demanda, "1D", "sum")
+            if df_d is not None:
+                 fig2 = px.area(df_d, x="Date", y=get_value_col(df_d), title="Demanda")
+                 fig2.update_traces(line_color=t["COLOR_BLUE"])
+                 g2.plotly_chart(style_fig(fig2), use_container_width=True)
+                 
+            # Chart 3: Embalse
+            df_v = calculate_periodicity(df_vol, "1D", "mean")
+            if df_v is not None:
+                 fig3 = px.line(df_v, x="Date", y=get_value_col(df_v), title="Nivel Embalses")
+                 fig3.update_traces(line_color="#22c55e")
+                 g3.plotly_chart(style_fig(fig3), use_container_width=True)
+
+        if st.button("Cerrar Visualización", key="close_auto_charts"):
+            st.session_state.ceo_chart_request = None
+            st.rerun()
 
     st.title("🔍 Explorador Avanzado")
 
