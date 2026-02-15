@@ -96,6 +96,7 @@ def fetch_all():
             client = _Client(inventory, url)
             df = client.request_data(metric_id, entity, start_date, end_date)
             if df is not None and not df.empty:
+                                df = df.copy()
                 if "Date" in df.columns:
                     df["Date"] = pd.to_datetime(df["Date"])
                 if "Entity" not in df.columns:
