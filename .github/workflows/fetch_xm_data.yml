@@ -36,5 +36,9 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add data/*.parquet
+          if [ -n "$(ls -A data/*.parquet 2>/dev/null)" ]; then
+          git add data/*.parquet data/_metadata.json
           git diff --quiet && git diff --staged --quiet || (git commit -m "Update XM data - $(date +'%Y-%m-%d %H:%M')" && git push)
+        else
+          echo "No parquet files found, skipping commit"
+        fi
