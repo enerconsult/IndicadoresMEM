@@ -1180,7 +1180,11 @@ elif selection == "Informe del CEO":
         st.rerun()
     
     # --- Context-Aware Chart Generation ---
-    if st.session_state.ceo_chat_messages and st.session_state.ceo_chat_messages[-1]["role"] == "assistant":
+    # Only show if there is a valid response (and API key is set)
+    if (st.session_state.ceo_chat_messages and 
+        st.session_state.ceo_chat_messages[-1]["role"] == "assistant" and 
+        st.session_state.ceo_api_key):
+        
         last_msg = st.session_state.ceo_chat_messages[-1]["content"]
         
         # 1. Determine Context
