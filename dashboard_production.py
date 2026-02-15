@@ -1311,49 +1311,21 @@ elif selection == "Informe del CEO":
             st.session_state.ceo_chart_request = None
             st.rerun()
 
-    st.title("🔍 Explorador Avanzado")
+elif selection == "Explorador":
+   # Redirigir al inicio o mostrar mensaje de que ahora está integrado en el chat
+   t = get_theme_config()
+   st.markdown(f"""
+   <div style="text-align:center;padding:3rem;">
+       <div style="font-size:3rem;margin-bottom:1rem;">🤖</div>
+       <h2>¡El explorador ahora es inteligente!</h2>
+       <p style="color:{t['TEXT_SUB']};max-width:500px;margin:0 auto;">
+          Ya no necesitas buscar variables manualmente. 
+          Ve a la pestaña <b>Informe del CEO</b> y pídele al consultor los datos que necesitas.
+          Él generará los gráficos automáticamente para ti.
+       </p>
+   </div>
+   """, unsafe_allow_html=True)
 
-    with st.spinner("Cargando catálogo..."):
-        df_vars = get_catalog()
-
-    if df_vars is not None and not df_vars.empty:
-        df_vars["DisplayName"] = df_vars["MetricName"] + " (" + df_vars["Entity"] + ")"
-        var_map = df_vars.set_index("DisplayName")[["MetricId", "Entity"]].to_dict("index")
-
-        metric_option = st.selectbox(
-            "Seleccione Variable",
-            options=sorted(var_map.keys()),
-            index=0,
-        )
-
-        if st.button("Consultar"):
-            meta = var_map[metric_option]
-            start_str = start_date.strftime("%Y-%m-%d")
-            end_str = end_date.strftime("%Y-%m-%d")
-
-            with st.spinner("Consultando..."):
-                df = fetch_single_metric(
-                    meta["MetricId"], meta["Entity"], start_str, end_str,
-                )
-
-            if df is not None and not df.empty:
-                t = get_theme_config()
-                cols = [
-                    c for c in df.columns
-                    if c not in ("Date", "Id", "Entity", "MetricId", "Values_code")
-                ]
-                if cols:
-                    fig = px.line(
-                        df, x="Date", y=cols[0],
-                        title=metric_option,
-                        color_discrete_sequence=[t["COLOR_BLUE"]],
-                    )
-                    st.plotly_chart(style_fig(fig), use_container_width=True)
-                st.dataframe(df, use_container_width=True)
-            else:
-                st.warning("Sin datos para la variable seleccionada en este periodo.")
-    else:
-        st.error("No se pudo cargar el catálogo de variables.")
 
 
 # ======================================================================
