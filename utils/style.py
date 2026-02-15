@@ -127,6 +127,32 @@ def load_css():
             margin-top: 0.5rem;
         }}
 
+        /* Sidebar Buttons */
+        [data-testid="stSidebar"] .stButton > button {
+            color: #ffffff !important;
+            background: linear-gradient(90deg, {t['COLOR_BLUE']}, {t['COLOR_BLUE_DARK']});
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        [data-testid="stSidebar"] .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            background: linear-gradient(90deg, {t['COLOR_BLUE_DARK']}, {t['COLOR_BLUE']});
+        }
+        [data-testid="stSidebar"] .stButton > button:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        /* Input fields in Sidebar */
+        [data-testid="stSidebar"] input {
+            color: #334155 !important;
+            background-color: #ffffff !important;
+        }
+        
         /* Mobile */
         @media (max-width: 768px) {{
             .block-container {{
