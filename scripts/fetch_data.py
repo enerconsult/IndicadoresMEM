@@ -2,13 +2,14 @@
 Offline data fetcher for XM metrics.
 
 Runs via GitHub Actions on a daily cron schedule (or manually).
-Downloads all summary metrics in parallel and saves as Parquet files
+Downloads all summary metrics with retry logic and saves as Parquet files
 in the data/ directory.  The Streamlit dashboard reads these files
 for near-instant load times.
 """
 
 import json
 import datetime as dt
+import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -56,6 +57,12 @@ METRICS = [
 # 400 days covers the 1Y periodicity view (365 d) plus margin
 LOOKBACK_DAYS = 400
 
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY_SECONDS = 5
+CONCURRENT_WORKERS = 2  # Conservative to avoid overwhelming XM server
+REQUEST_DELAY = 2  # Seconds between requests to same client
+
 
 # ---------------------------------------------------------------------------
 # Thread-safe XM client  (shares the inventory to skip redundant HTTP call)
@@ -74,7 +81,7 @@ class _Client(ReadDB):
 
 
 # ---------------------------------------------------------------------------
-# Fetch logic
+# Fetch logic with retries
 # ---------------------------------------------------------------------------
 def fetch_all():
     DATA_DIR.mkdir(exist_ok=True)
@@ -84,6 +91,7 @@ def fetch_all():
 
     print(f"Fetching XM data  {start_date} -> {end_date}")
     print(f"Metrics: {len(METRICS)}")
+    print(f"Config: {MAX_RETRIES} retries, {CONCURRENT_WORKERS} workers, {REQUEST_DELAY}s delay")
     print()
 
     # Build one base API to share the metric inventory across threads
@@ -92,29 +100,47 @@ def fetch_all():
     url = base_api.url
 
     def _fetch_one(metric_id, entity):
-        try:
-            client = _Client(inventory, url)
-            df = client.request_data(metric_id, entity, start_date, end_date)
-            if df is not None and not df.empty:
-                df = df.copy()
-                if "Date" in df.columns:
-                    df["Date"] = pd.to_datetime(df["Date"])
-                if "Entity" not in df.columns:
-                    df["Entity"] = entity
-                path = DATA_DIR / f"{metric_id}.parquet"
-                df.to_parquet(path, index=False)
-                print(f"  OK    {metric_id:25s}  {len(df):>5} rows  ->  {path.name}")
-                return metric_id, True
-            print(f"  EMPTY {metric_id}")
-            return metric_id, False
-        except Exception as e:
-            print(f"  ERR   {metric_id}: {e}")
-            return metric_id, False
+        """Fetch a single metric with retry logic."""
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                client = _Client(inventory, url)
+                df = client.request_data(metric_id, entity, start_date, end_date)
+                
+                if df is not None and not df.empty:
+                    df = df.copy()
+                    if "Date" in df.columns:
+                        df["Date"] = pd.to_datetime(df["Date"])
+                    if "Entity" not in df.columns:
+                        df["Entity"] = entity
+                    path = DATA_DIR / f"{metric_id}.parquet"
+                    df.to_parquet(path, index=False)
+                    
+                    if attempt > 1:
+                        print(f"  OK    {metric_id:25s}  {len(df):>5} rows  (retry {attempt-1})")
+                    else:
+                        print(f"  OK    {metric_id:25s}  {len(df):>5} rows")
+                    return metric_id, True
+                
+                print(f"  EMPTY {metric_id}")
+                return metric_id, False
+                
+            except Exception as e:
+                error_msg = str(e)
+                if "timeout" in error_msg.lower() or "Cannot connect" in error_msg:
+                    if attempt < MAX_RETRIES:
+                        print(f"  RETRY {metric_id:25s}  (attempt {attempt}/{MAX_RETRIES}) - timeout")
+                        time.sleep(RETRY_DELAY_SECONDS * attempt)  # Exponential backoff
+                        continue
+                
+                print(f"  ERR   {metric_id}: {e}")
+                return metric_id, False
+        
+        return metric_id, False
 
     results = {}
-    workers = min(len(METRICS), 8)
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
+    
+    # Use conservative worker count to avoid overwhelming XM server
+    with ThreadPoolExecutor(max_workers=CONCURRENT_WORKERS) as pool:
         futures = {
             pool.submit(_fetch_one, mid, ent): mid
             for mid, ent in METRICS
@@ -122,6 +148,8 @@ def fetch_all():
         for future in as_completed(futures):
             mid, ok = future.result()
             results[mid] = ok
+            # Small delay between completions to not start new requests too fast
+            time.sleep(0.5)
 
     # Write metadata so the dashboard can check freshness
     meta = {
@@ -136,6 +164,11 @@ def fetch_all():
 
     ok_count = sum(v for v in results.values())
     print(f"\nDone: {ok_count}/{len(METRICS)} metrics saved to {DATA_DIR}")
+    
+    if ok_count < len(METRICS):
+        failed = [m for m, ok in results.items() if not ok]
+        print(f"Failed metrics: {', '.join(failed)}")
+    
     return results
 
 
