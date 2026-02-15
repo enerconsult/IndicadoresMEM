@@ -271,7 +271,9 @@ def _call_ceo_consultant(api_key, user_question, report_context, history):
         f"Pregunta actual del usuario:\n{user_question}\n\n"
         "Instrucción final: Analiza la pregunta. Si puedes responder con los datos cargados, hazlo con precisión. "
         "Si la pregunta requiere conocimiento externo, teoría, o proyección futura fuera de los datos, responde con tu conocimiento general experto. "
-        "Estructura tu respuesta de forma ejecutiva (Lectura de situación -> Implicación -> Recomendación/Análisis)."
+        "Estructura tu respuesta de forma ejecutiva (Lectura de situación -> Implicación -> Recomendación/Análisis).\n"
+        "IMPORTANTE: Al final de tu respuesta, añade una línea con el formato [[GRAFICO:TIPO]] indicando qué visualización apoya mejor tu respuesta. "
+        "Opciones: PRECIO, DEMANDA, HIDRO, GENERAL."
     )
 
     url = (
@@ -1078,9 +1080,11 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_period_key = current_period_key
     if "ceo_chat_messages" not in st.session_state:
         st.session_state.ceo_chat_messages = []
+        st.session_state.ceo_last_context = "GENERAL"
     elif st.session_state.ceo_period_key != current_period_key:
         st.session_state.ceo_period_key = current_period_key
         st.session_state.ceo_chat_messages = []
+        st.session_state.ceo_last_context = "GENERAL"
 
     has_messages = len(st.session_state.ceo_chat_messages) > 0
 
@@ -1156,13 +1160,16 @@ elif selection == "Informe del CEO":
             not is_error):
             
             # 1. Determine Context
-            context_type = "general"
-            if "precio" in last_msg.lower() or "bolsa" in last_msg.lower():
-                context_type = "precio"
-            elif "demanda" in last_msg.lower() or "consumo" in last_msg.lower():
-                context_type = "demanda"
-            elif "embalse" in last_msg.lower() or "aportes" in last_msg.lower() or "hidrico" in last_msg.lower():
-                context_type = "hidro"
+            context_type = st.session_state.get("ceo_last_context", "GENERAL").lower()
+            
+            # Fallback (if LLM didn't tag or tagged GENERAL but keywords are strong)
+            if context_type == "general":
+                if "precio" in last_msg.lower() or "bolsa" in last_msg.lower():
+                    context_type = "precio"
+                elif "demanda" in last_msg.lower() or "consumo" in last_msg.lower():
+                    context_type = "demanda"
+                elif "embalse" in last_msg.lower() or "aportes" in last_msg.lower() or "hidrico" in last_msg.lower():
+                    context_type = "hidro"
             
             # Suggestion UI
             st.markdown(f"""
@@ -1329,6 +1336,15 @@ elif selection == "Informe del CEO":
                             final_context,
                             st.session_state.ceo_chat_messages,
                         )
+                        
+                        # Extract chart context
+                        chart_ctx = "GENERAL"
+                        match = re.search(r"\[\[GRAFICO:(\w+)\]\]", answer, re.IGNORECASE)
+                        if match:
+                            chart_ctx = match.group(1).upper()
+                            answer = re.sub(r"\[\[GRAFICO:(\w+)\]\]", "", answer).strip()
+                        st.session_state.ceo_last_context = chart_ctx
+
                         if not answer:
                             answer = "No recibi contenido del modelo."
                     except Exception as e:
