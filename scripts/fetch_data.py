@@ -80,6 +80,42 @@ class _Client(ReadDB):
         self.inventario_metricas = inventory
 
 
+def _safe_copy(df):
+    """
+    SOLUCIÓN DEFINITIVA: Crear una copia completamente independiente del DataFrame.
+    Usa to_dict() que garantiza copia profunda de todos los datos.
+    """
+    if df is None or df.empty:
+        return df
+    
+    # Método 1: to_dict garantiza copia completa
+    try:
+        return pd.DataFrame(df.to_dict('records'))
+    except Exception:
+        pass
+    
+    # Método 2: astype fuerza reconstrucción
+    try:
+        return df.astype(df.dtypes.to_dict())
+    except Exception:
+        pass
+    
+    # Método 3: pickle/unpickle (copia binaria completa)
+    import pickle
+    try:
+        return pickle.loads(pickle.dumps(df))
+    except Exception:
+        pass
+    
+    # Método 4: json round-trip (más lento pero seguro)
+    try:
+        return pd.read_json(df.to_json(orient='records'), orient='records')
+    except Exception:
+        pass
+    
+    return df
+
+
 # ---------------------------------------------------------------------------
 # Fetch logic with retries
 # ---------------------------------------------------------------------------
@@ -107,20 +143,15 @@ def fetch_all():
                 df = client.request_data(metric_id, entity, start_date, end_date)
                 
                 if df is not None and not df.empty:
-                    # Solucionar "read-only" error: crear DataFrame nuevo con copia profunda
-                    import numpy as np
-                    data_dict = {}
-                    for col in df.columns:
-                        val = df[col].values
-                        if isinstance(val, np.ndarray) and not val.flags.writeable:
-                            val = val.copy()
-                        data_dict[col] = val
-                    df = pd.DataFrame(data_dict)
+                    # SOLUCIÓN DEFINITIVA: Copia segura del DataFrame
+                    df = _safe_copy(df)
                     
+                    # Ahora podemos modificar sin problemas
                     if "Date" in df.columns:
                         df["Date"] = pd.to_datetime(df["Date"])
                     if "Entity" not in df.columns:
                         df["Entity"] = entity
+                    
                     path = DATA_DIR / f"{metric_id}.parquet"
                     df.to_parquet(path, index=False)
                     
@@ -138,7 +169,7 @@ def fetch_all():
                 if "timeout" in error_msg.lower() or "Cannot connect" in error_msg:
                     if attempt < MAX_RETRIES:
                         print(f"  RETRY {metric_id:25s}  (attempt {attempt}/{MAX_RETRIES}) - timeout")
-                        time.sleep(RETRY_DELAY_SECONDS * attempt)  # Exponential backoff
+                        time.sleep(RETRY_DELAY_SECONDS * attempt)
                         continue
                 
                 print(f"  ERR   {metric_id}: {e}")
@@ -148,7 +179,6 @@ def fetch_all():
 
     results = {}
     
-    # Use conservative worker count to avoid overwhelming XM server
     with ThreadPoolExecutor(max_workers=CONCURRENT_WORKERS) as pool:
         futures = {
             pool.submit(_fetch_one, mid, ent): mid
@@ -157,7 +187,6 @@ def fetch_all():
         for future in as_completed(futures):
             mid, ok = future.result()
             results[mid] = ok
-            # Small delay between completions to not start new requests too fast
             time.sleep(0.5)
 
     # Write metadata so the dashboard can check freshness
