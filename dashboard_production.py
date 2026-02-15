@@ -250,12 +250,11 @@ def _call_ceo_consultant(api_key, user_question, report_context, history):
     instruction = (
         "Actúa como consultor experto del Mercado de Energía Mayorista (MEM) de Colombia.\n"
         "Reglas:\n"
-        "- Responde SOLO sobre mercado de energía, operación del sistema, precios, escasez, demanda, generación, embalses y aportes.\n"
-        "- Usa primero el contexto del informe provisto.\n"
-        "- Si en el contexto aparece 'SUBRANGO SOLICITADO (prioritario)', responde principalmente sobre ese subrango.\n"
-        "- Si la pregunta está fuera de ese dominio, indícalo brevemente.\n"
-        "- No inventes cifras; si no hay dato en el contexto, dilo con claridad.\n"
-        "- Responde en español ejecutivo, claro y accionable.\n"
+        "1. PRIORIDAD - DATOS CARGADOS: Si la pregunta se refiere al periodo o datos específicos del 'Contexto del informe', responde basándote estrictamente en esos números provided.\n"
+        "2. ANÁLISIS GENERAL / PREDICCIÓN: Si la pregunta excede el rango de fechas cargado, pide predicciones futuras, o trata sobre conceptos generales del mercado (regulación, fenómenos climáticos, tendencias globales), DEBES usar tu conocimiento general como modelo de IA (similar a Gemini Web). NO te limites a decir 'no tengo datos'.\n"
+        "3. INTEGRACIÓN: Si es posible, combina los datos cargados con tu conocimiento general para dar una respuesta más completa.\n"
+        "4. FORMATO: Responde en español ejecutivo, claro y accionable.\n"
+        "5. NO ALUCINES CIFRAS EXACTAS: Para fechas fuera del contexto cargado, usa estimaciones o tendencias generales, no inventes valores precisos si no están en el contexto.\n"
     )
 
     history_text = []
@@ -266,10 +265,13 @@ def _call_ceo_consultant(api_key, user_question, report_context, history):
 
     prompt = (
         f"{instruction}\n"
-        f"Contexto del informe:\n{report_context}\n\n"
+        f"--- CONTEXTO DE DATOS CARGADOS (Verdad absoluta para este periodo) ---\n{report_context}\n"
+        "----------------------------------------------------------------------\n\n"
         f"Historial reciente:\n{history_block}\n\n"
         f"Pregunta actual del usuario:\n{user_question}\n\n"
-        "Entrega una respuesta directa con 3 bloques: 1) lectura del dato, 2) implicación de negocio, 3) recomendación."
+        "Instrucción final: Analiza la pregunta. Si puedes responder con los datos cargados, hazlo con precisión. "
+        "Si la pregunta requiere conocimiento externo, teoría, o proyección futura fuera de los datos, responde con tu conocimiento general experto. "
+        "Estructura tu respuesta de forma ejecutiva (Lectura de situación -> Implicación -> Recomendación/Análisis)."
     )
 
     url = (
