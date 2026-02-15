@@ -653,93 +653,117 @@ if selection == "Resumen":
 
 
 elif selection == "Informe del CEO":
-    st.markdown("""
+    st.markdown(
+        """
     <style>
-      .ceo-wrap {max-width: 1080px; margin: 0 auto;}
+      .ceo-wrap {
+        max-width: 680px;
+        margin: 8px auto 0 auto;
+      }
       .ceo-chat-shell {
-        margin-top: 8px;
         border-radius: 24px;
-        border: 1px solid rgba(100,116,139,0.28);
-        background: #d1d5db;
+        border: 1px solid rgba(100, 116, 139, 0.32);
+        background: #ffffff;
         overflow: hidden;
-        box-shadow: 0 12px 28px rgba(2,6,23,0.35);
+        box-shadow: 0 16px 34px rgba(2, 6, 23, 0.32);
       }
       .ceo-chat-head {
         background: linear-gradient(135deg, #2563eb, #4f46e5);
         color: #f8fafc;
-        padding: 16px 20px;
+        padding: 14px 18px;
         display: flex;
         align-items: center;
         justify-content: space-between;
       }
-      .ceo-chat-title {font-weight: 800; font-size: 2rem; margin: 0;}
-      .ceo-chat-sub {font-size: 1.35rem; color: #dbeafe; margin: 2px 0 0;}
+      .ceo-chat-title {font-weight: 800; font-size: 1.85rem; margin: 0;}
+      .ceo-chat-sub {font-size: 1.05rem; color: #dbeafe; margin: 1px 0 0;}
       .ceo-chat-body {
-        background: #eef2f7;
-        min-height: 430px;
-        max-height: 560px;
+        background: #f1f5f9;
+        min-height: 240px;
+        max-height: 420px;
         overflow-y: auto;
-        padding: 18px 16px;
+        padding: 16px 14px;
       }
       .ceo-msg-row {
         display: flex;
-        gap: 12px;
-        margin-bottom: 14px;
+        gap: 10px;
+        margin-bottom: 12px;
         align-items: flex-start;
       }
       .ceo-msg-row.user {justify-content: flex-end;}
       .ceo-avatar {
-        width: 38px; height: 38px; border-radius: 999px; flex: 0 0 38px;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 17px;
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        flex: 0 0 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
       }
       .ceo-avatar.bot {background: #dbeafe; color: #1e3a8a;}
       .ceo-avatar.user {background: #fee2e2; color: #b91c1c;}
       .ceo-bubble {
         border-radius: 18px;
-        padding: 13px 16px;
-        max-width: 84%;
+        padding: 11px 14px;
+        max-width: 86%;
         line-height: 1.45;
-        font-size: 1.05rem;
+        font-size: 1rem;
       }
       .ceo-bubble.bot {background: #ffffff; border: 1px solid #d1d5db; color: #334155;}
-      .ceo-bubble.user {background: #f3f4f6; border: 1px solid #d1d5db; color: #374151;}
-      .ceo-input-shell {background: #f8fafc; border-top: 1px solid #cbd5e1; padding: 12px;}
-      .ceo-prompt-note {font-size: .8rem; color: #94a3b8; margin: 6px 2px 0;}
+      .ceo-bubble.user {background: #f8fafc; border: 1px solid #d1d5db; color: #374151;}
+      .ceo-input-shell {
+        background: #ffffff;
+        border-top: 1px solid #dbe3ef;
+        padding: 10px 12px 8px 12px;
+      }
+      .ceo-prompt-note {
+        font-size: .75rem;
+        color: #94a3b8;
+        margin: 6px 2px 2px;
+        text-align: center;
+      }
       div[data-testid="stExpander"] {
-        border: 1px solid rgba(148,163,184,0.28) !important;
+        border: 1px solid rgba(148, 163, 184, 0.28) !important;
         border-radius: 14px !important;
-        background: rgba(15,23,42,0.35) !important;
+        background: rgba(15, 23, 42, 0.24) !important;
+      }
+      div[data-testid="stForm"] {
+        background: transparent !important;
+        border: 0 !important;
+        padding: 0 !important;
       }
       div[data-testid="stForm"] div[data-testid="stTextInput"] input {
         background: #e2e8f0 !important;
         border: 1px solid #cbd5e1 !important;
         color: #334155 !important;
         border-radius: 999px !important;
-        font-size: 1.15rem !important;
+        font-size: 1.02rem !important;
         padding: 10px 16px !important;
       }
-      div[data-testid="stForm"] div[data-testid="stTextInput"] input::placeholder {color: #94a3b8 !important;}
-      div[data-testid="stButton"] > button {
-        background: linear-gradient(135deg, #1d4ed8, #0d9488) !important;
-        color: #f8fafc !important;
-        border: 0 !important;
-        border-radius: 12px !important;
-        font-weight: 700 !important;
+      div[data-testid="stForm"] div[data-testid="stTextInput"] input::placeholder {
+        color: #94a3b8 !important;
       }
       div[data-testid="stForm"] div[data-testid="stButton"] > button {
         border-radius: 999px !important;
-        height: 46px !important;
-        width: 46px !important;
+        height: 42px !important;
+        width: 42px !important;
         padding: 0 !important;
-        font-size: 1.2rem !important;
+        font-size: 1.05rem !important;
+        background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+        color: #f8fafc !important;
+        border: 0 !important;
       }
       @media (max-width: 840px) {
-        .ceo-chat-title {font-size: 1.25rem;}
-        .ceo-chat-sub {font-size: 0.92rem;}
+        .ceo-wrap {max-width: 100%;}
+        .ceo-chat-title {font-size: 1.2rem;}
+        .ceo-chat-sub {font-size: 0.9rem;}
+        .ceo-chat-body {max-height: 380px;}
       }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown('<div class="ceo-wrap">', unsafe_allow_html=True)
 
@@ -828,7 +852,8 @@ elif selection == "Informe del CEO":
             st.session_state.ceo_api_key = ""
             st.warning("API Key eliminada de la sesión.")
 
-    st.markdown("""
+    st.markdown(
+        """
     <div class="ceo-chat-shell">
       <div class="ceo-chat-head">
         <div>
@@ -838,7 +863,9 @@ elif selection == "Informe del CEO":
         <div style="font-size:1.15rem;">✦</div>
       </div>
       <div class="ceo-chat-body">
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
     for msg in st.session_state.ceo_chat_messages:
         role = msg.get("role", "assistant")
         safe_text = pyhtml.escape(msg.get("content", "")).replace("\n", "<br>")
@@ -864,21 +891,23 @@ elif selection == "Informe del CEO":
             )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.container():
-        st.markdown('<div class="ceo-input-shell">', unsafe_allow_html=True)
-        with st.form("ceo_chat_form", clear_on_submit=True):
-            in_col, send_col = st.columns([10, 1])
-            with in_col:
-                question = st.text_input(
-                    "Pregunta al consultor MEM",
-                    value="",
-                    placeholder="Escribe tu consulta ejecutiva del MEM...",
-                    label_visibility="collapsed",
-                )
-            with send_col:
-                send_clicked = st.form_submit_button("➤", use_container_width=True)
-        st.markdown('<p class="ceo-prompt-note">Consulta solo temas del mercado de energía (MEM).</p>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('<div class="ceo-input-shell">', unsafe_allow_html=True)
+    with st.form("ceo_chat_form", clear_on_submit=True):
+        in_col, send_col = st.columns([10, 1])
+        with in_col:
+            question = st.text_input(
+                "Pregunta al consultor MEM",
+                value="",
+                placeholder="Escribe tu consulta ejecutiva del MEM...",
+                label_visibility="collapsed",
+            )
+        with send_col:
+            send_clicked = st.form_submit_button("➤", use_container_width=True)
+    st.markdown(
+        '<p class="ceo-prompt-note">Consulta solo temas del mercado de energía (MEM).</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div></div></div>", unsafe_allow_html=True)
 
     if not send_clicked:
         question = question if question else None
@@ -912,9 +941,6 @@ elif selection == "Informe del CEO":
 
         st.session_state.ceo_chat_messages.append({"role": "assistant", "content": answer})
         st.rerun()
-
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
 
 elif selection == "Explorador":
     st.title("🔍 Explorador Avanzado")
