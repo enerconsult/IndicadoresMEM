@@ -127,6 +127,21 @@ def load_css():
             margin-top: 0.5rem;
         }}
 
+        /* General Buttons (Main Area) */
+        .stButton > button {{
+            background-color: {t['CARD_BG']} !important;
+            color: {t['TEXT_COLOR']} !important;
+            border: 1px solid {t['BORDER_COLOR']} !important;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }}
+        .stButton > button:hover {{
+            border-color: {t['COLOR_BLUE']} !important;
+            color: {t['COLOR_BLUE']} !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }}
+
         /* Sidebar Buttons */
         [data-testid="stSidebar"] .stButton > button {{
             color: #ffffff !important;
