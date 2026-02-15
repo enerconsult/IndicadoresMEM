@@ -1,0 +1,18 @@
+{
+  "last_fetch": "2026-02-15T02:40:42.081204Z",
+  "start_date": "2025-01-10",
+  "end_date": "2026-02-14",
+  "metrics": {
+    "PrecEsca": true,
+    "PrecBolsNaci": true,
+    "PrecEscaSup": true,
+    "PrecEscaInf": true,
+    "DemaCome": true,
+    "MaxPrecOferNal": true,
+    "Gene": true,
+    "VoluUtilDiarEner": true,
+    "CapaUtilDiarEner": true,
+    "AporEner": true,
+    "AporEnerMediHist": true
+  }
+}
