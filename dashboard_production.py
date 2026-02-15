@@ -1215,13 +1215,13 @@ elif selection == "Informe del CEO":
         try:
              # --- LOGIC: PRECIO ---
             if ctx == "precio":
-                df_p = calculate_periodicity(df_bolsa, "1D", "mean")
+                df_p = calculate_periodicity(df_bolsa, "1M", "mean")
                 if df_p is not None:
                     fig1 = px.line(df_p, x="Date", y=get_value_col(df_p), title="Evolución Precio Bolsa")
                     fig1.update_traces(line_color=t["COLOR_ORANGE"], line_width=2)
                     g1.plotly_chart(style_fig(fig1), use_container_width=True)
 
-                df_esc = calculate_periodicity(df_escasez, "1D", "mean")
+                df_esc = calculate_periodicity(df_escasez, "1M", "mean")
                 if df_p is not None and df_esc is not None:
                     fig2 = go.Figure()
                     fig2.add_trace(go.Scatter(x=df_p["Date"], y=df_p[get_value_col(df_p)], name="Bolsa", line=dict(color=t["COLOR_ORANGE"])))
@@ -1231,8 +1231,8 @@ elif selection == "Informe del CEO":
 
             # --- LOGIC: DEMANDA ---
             elif ctx == "demanda":
-                df_d = calculate_periodicity(df_demanda, "1D", "sum")
-                df_g = calculate_periodicity(df_gen, "1D", "sum")
+                df_d = calculate_periodicity(df_demanda, "1M", "sum")
+                df_g = calculate_periodicity(df_gen, "1M", "sum")
                 
                 if df_d is not None and df_g is not None:
                      fig1 = go.Figure()
@@ -1251,8 +1251,8 @@ elif selection == "Informe del CEO":
 
             # --- LOGIC: HIDRO (Embalses) ---
             elif ctx == "hidro":
-                df_c = calculate_periodicity(df_cap, "1D", "mean")
-                df_v = calculate_periodicity(df_vol, "1D", "mean")
+                df_c = calculate_periodicity(df_cap, "1M", "mean")
+                df_v = calculate_periodicity(df_vol, "1M", "mean")
                 if df_v is not None and df_c is not None:
                     fig1 = go.Figure()
                     fig1.add_trace(go.Scatter(x=df_c["Date"], y=df_c[get_value_col(df_c)], name="Capacidad Total", line=dict(dash='dot', color="#94a3b8")))
@@ -1260,8 +1260,8 @@ elif selection == "Informe del CEO":
                     fig1.update_layout(title="Nivel de Llenado (%)")
                     g1.plotly_chart(style_fig(fig1), use_container_width=True)
 
-                df_a = calculate_periodicity(df_apor, "1D", "sum")
-                df_m = calculate_periodicity(df_media, "1D", "sum")
+                df_a = calculate_periodicity(df_apor, "1M", "sum")
+                df_m = calculate_periodicity(df_media, "1M", "sum")
                 if df_a is not None and df_m is not None:
                     fig2 = go.Figure()
                     fig2.add_trace(go.Bar(x=df_a["Date"], y=df_a[get_value_col(df_a)], name="Aportes", marker_color=t["COLOR_BLUE"]))
@@ -1271,18 +1271,18 @@ elif selection == "Informe del CEO":
 
             # --- LOGIC: GENERAL (Fallback) ---
             else:
-                df_p = calculate_periodicity(df_bolsa, "1D", "mean")
+                df_p = calculate_periodicity(df_bolsa, "1M", "mean")
                 if df_p is not None:
                      fig1 = px.line(df_p, x="Date", y=get_value_col(df_p), title="Precio Bolsa")
                      fig1.update_traces(line_color=t["COLOR_ORANGE"])
                      g1.plotly_chart(style_fig(fig1), use_container_width=True)
                 
-                df_v = calculate_periodicity(df_vol, "1D", "mean")
+                df_v = calculate_periodicity(df_vol, "1M", "mean")
                 if df_v is not None:
                      fig2 = px.line(df_v, x="Date", y=get_value_col(df_v), title="Nivel Embalses")
                      fig2.update_traces(line_color="#22c55e")
                      g2.plotly_chart(style_fig(fig2), use_container_width=True)
-        
+         
         except Exception as e:
             st.error(f"Error generando gráficos: {e}")
 
