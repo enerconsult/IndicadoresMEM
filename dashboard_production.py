@@ -244,6 +244,10 @@ def _build_subperiod_context(question, global_start, global_end, cur, market_cur
 
 
 def _call_ceo_consultant(api_key, user_question, report_context, history):
+    api_key = (api_key or "").strip()
+    if not api_key:
+        raise RuntimeError("API Key vacía. Configura una API Key válida de Gemini.")
+
     instruction = (
         "Actúa como consultor experto del Mercado de Energía Mayorista (MEM) de Colombia.\n"
         "Reglas:\n"
@@ -957,21 +961,15 @@ elif selection == "Informe del CEO":
         ]
 
     with st.expander("⚙ Configurar API Key Gemini", expanded=(not bool(st.session_state.ceo_api_key))):
-        key_input = st.text_input(
+        st.text_input(
             "Gemini API Key",
             type="password",
-            value=st.session_state.ceo_api_key,
             placeholder="AIza...",
-            key="ceo_key_input",
+            key="ceo_api_key",
+            help="Se aplica inmediatamente en esta sesión. No necesitas presionar Guardar.",
         )
-        c_key_1, c_key_2 = st.columns(2)
-        if c_key_1.button("Guardar API Key", key="save_ceo_key"):
-            st.session_state.ceo_api_key = key_input.strip()
-            if st.session_state.ceo_api_key:
-                st.success("API Key guardada para esta sesión.")
-            else:
-                st.warning("Ingresa una API Key válida.")
-        if c_key_2.button("Limpiar API Key", key="clear_ceo_key"):
+        st.caption("La API Key se usa solo en la sesión actual de Streamlit.")
+        if st.button("Limpiar API Key", key="clear_ceo_key"):
             st.session_state.ceo_api_key = ""
             st.warning("API Key eliminada de la sesión.")
 
