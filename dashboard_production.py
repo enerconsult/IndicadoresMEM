@@ -655,112 +655,71 @@ if selection == "Resumen":
 elif selection == "Informe del CEO":
     st.markdown("""
     <style>
-      .ceo-wrap {max-width: 980px; margin: 0 auto;}
-      .ceo-hero {
-        background: linear-gradient(120deg, #0f172a 0%, #1d4ed8 52%, #0d9488 100%);
-        color: #f8fafc; border-radius: 20px; padding: 20px 24px; margin-bottom: 14px;
-        border: 1px solid rgba(56,189,248,0.35);
-        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.45);
-      }
-      .ceo-hero h2 {margin: 0; font-size: 1.35rem; font-weight: 900; letter-spacing: 0.01em;}
-      .ceo-hero p {margin: 8px 0 0; color: #dbeafe; font-size: 0.92rem;}
-      .ceo-chip-row {display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; margin: 12px 0 14px;}
-      .ceo-chip {
-        border-radius: 14px; padding: 10px 12px; background: rgba(2,6,23,0.6);
-        border: 1px solid rgba(148,163,184,0.25);
-      }
-      .ceo-chip-k {font-size: 11px; color:#93c5fd; text-transform: uppercase; letter-spacing: .08em;}
-      .ceo-chip-v {font-size: 18px; color:#f8fafc; font-weight: 800; margin-top: 2px;}
-      .ceo-box {
-        background: rgba(15, 23, 42, 0.65);
-        border: 1px solid rgba(148,163,184,0.22);
-        border-radius: 18px;
-        padding: 14px;
-      }
+      .ceo-wrap {max-width: 1080px; margin: 0 auto;}
       .ceo-chat-shell {
-        margin-top: 14px;
-        border-radius: 22px;
+        margin-top: 8px;
+        border-radius: 24px;
         border: 1px solid rgba(100,116,139,0.28);
-        background: rgba(2,6,23,0.55);
+        background: #d1d5db;
         overflow: hidden;
-        box-shadow: 0 16px 36px rgba(2,6,23,0.45);
+        box-shadow: 0 12px 28px rgba(2,6,23,0.35);
       }
       .ceo-chat-head {
         background: linear-gradient(135deg, #2563eb, #4f46e5);
         color: #f8fafc;
-        padding: 14px 16px;
+        padding: 16px 20px;
         display: flex;
         align-items: center;
         justify-content: space-between;
       }
-      .ceo-chat-title {font-weight: 800; font-size: 1.1rem; margin: 0;}
-      .ceo-chat-sub {font-size: .85rem; color: #dbeafe; margin: 2px 0 0;}
+      .ceo-chat-title {font-weight: 800; font-size: 2rem; margin: 0;}
+      .ceo-chat-sub {font-size: 1.35rem; color: #dbeafe; margin: 2px 0 0;}
       .ceo-chat-body {
         background: #eef2f7;
-        min-height: 420px;
-        max-height: 520px;
+        min-height: 430px;
+        max-height: 560px;
         overflow-y: auto;
-        padding: 16px;
+        padding: 18px 16px;
       }
       .ceo-msg-row {
         display: flex;
-        gap: 10px;
-        margin-bottom: 12px;
+        gap: 12px;
+        margin-bottom: 14px;
         align-items: flex-start;
       }
       .ceo-msg-row.user {justify-content: flex-end;}
       .ceo-avatar {
-        width: 34px; height: 34px; border-radius: 999px; flex: 0 0 34px;
+        width: 38px; height: 38px; border-radius: 999px; flex: 0 0 38px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 15px;
+        font-size: 17px;
       }
       .ceo-avatar.bot {background: #dbeafe; color: #1e3a8a;}
       .ceo-avatar.user {background: #fee2e2; color: #b91c1c;}
       .ceo-bubble {
-        border-radius: 16px;
-        padding: 12px 14px;
+        border-radius: 18px;
+        padding: 13px 16px;
         max-width: 84%;
         line-height: 1.45;
-        font-size: 1rem;
+        font-size: 1.05rem;
       }
-      .ceo-bubble.bot {
-        background: #ffffff;
-        border: 1px solid #d1d5db;
-        color: #334155;
-      }
-      .ceo-bubble.user {
-        background: #f3f4f6;
-        border: 1px solid #d1d5db;
-        color: #374151;
-      }
-      .ceo-input-shell {
-        background: #f8fafc;
-        border-top: 1px solid #cbd5e1;
-        padding: 10px 12px;
-      }
-      .ceo-prompt-note {font-size: .8rem; color: #94a3b8; margin: 8px 2px 0;}
-      div[data-testid="stTextInput"] input {
-        background: #0b1220 !important;
-        border: 1px solid #334155 !important;
-        color: #e2e8f0 !important;
-      }
-      div[data-testid="stTextInput"] input::placeholder {
-        color: #94a3b8 !important;
-      }
+      .ceo-bubble.bot {background: #ffffff; border: 1px solid #d1d5db; color: #334155;}
+      .ceo-bubble.user {background: #f3f4f6; border: 1px solid #d1d5db; color: #374151;}
+      .ceo-input-shell {background: #f8fafc; border-top: 1px solid #cbd5e1; padding: 12px;}
+      .ceo-prompt-note {font-size: .8rem; color: #94a3b8; margin: 6px 2px 0;}
       div[data-testid="stExpander"] {
         border: 1px solid rgba(148,163,184,0.28) !important;
         border-radius: 14px !important;
-        background: rgba(15,23,42,0.48) !important;
+        background: rgba(15,23,42,0.35) !important;
       }
-      div[data-testid="stChatInput"] textarea {
-        background: #0b1220 !important;
-        color: #e2e8f0 !important;
-        border: 1px solid #334155 !important;
-        border-radius: 14px !important;
+      div[data-testid="stForm"] div[data-testid="stTextInput"] input {
+        background: #e2e8f0 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #334155 !important;
+        border-radius: 999px !important;
+        font-size: 1.15rem !important;
+        padding: 10px 16px !important;
       }
-      div[data-testid="stChatMessage"] {
-        border-radius: 14px !important;
-      }
+      div[data-testid="stForm"] div[data-testid="stTextInput"] input::placeholder {color: #94a3b8 !important;}
       div[data-testid="stButton"] > button {
         background: linear-gradient(135deg, #1d4ed8, #0d9488) !important;
         color: #f8fafc !important;
@@ -768,23 +727,21 @@ elif selection == "Informe del CEO":
         border-radius: 12px !important;
         font-weight: 700 !important;
       }
-      div[data-testid="stForm"] div[data-testid="stTextInput"] input {
-        background: #0b1220 !important;
+      div[data-testid="stForm"] div[data-testid="stButton"] > button {
         border-radius: 999px !important;
+        height: 46px !important;
+        width: 46px !important;
+        padding: 0 !important;
+        font-size: 1.2rem !important;
       }
       @media (max-width: 840px) {
-        .ceo-chip-row {grid-template-columns: repeat(2, minmax(0,1fr));}
+        .ceo-chat-title {font-size: 1.25rem;}
+        .ceo-chat-sub {font-size: 0.92rem;}
       }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="ceo-wrap">', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="ceo-hero">
-      <h2>Informe del CEO | Chat Consultor MEM</h2>
-      <p>Asistente experto en mercado de energía. Consulta solo información del MEM y análisis ejecutivo del periodo seleccionado.</p>
-    </div>
-    """, unsafe_allow_html=True)
 
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
@@ -840,7 +797,7 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_chat_messages = [
             {
                 "role": "assistant",
-                "content": "Listo. Soy tu consultor experto del MEM. Pregúntame sobre precios, escasez, demanda, generación, embalses o implicaciones ejecutivas del periodo.",
+                "content": "Hola, soy tu consultor experto del MEM. ¿En qué puedo ayudarte?",
             }
         ]
     elif st.session_state.ceo_period_key != current_period_key:
@@ -848,15 +805,11 @@ elif selection == "Informe del CEO":
         st.session_state.ceo_chat_messages = [
             {
                 "role": "assistant",
-                "content": (
-                    f"Periodo actualizado a {start_str} - {end_str}. "
-                    "Inicié un nuevo chat para evitar mezclar conversaciones."
-                ),
+                "content": f"Periodo actualizado a {start_str} - {end_str}. ¿Qué deseas analizar?",
             }
         ]
 
-    st.markdown('<div class="ceo-box">', unsafe_allow_html=True)
-    with st.expander("Configuración de API Key (Gemini)", expanded=(not bool(st.session_state.ceo_api_key))):
+    with st.expander("⚙ Configurar API Key Gemini", expanded=(not bool(st.session_state.ceo_api_key))):
         key_input = st.text_input(
             "Gemini API Key",
             type="password",
@@ -874,33 +827,6 @@ elif selection == "Informe del CEO":
         if c_key_2.button("Limpiar API Key", key="clear_ceo_key"):
             st.session_state.ceo_api_key = ""
             st.warning("API Key eliminada de la sesión.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    quick_col_1, quick_col_2, quick_col_3 = st.columns(3)
-    if quick_col_1.button("¿Cuál es el principal riesgo del periodo?", use_container_width=True):
-        st.session_state.ceo_quick_q = "¿Cuál es el principal riesgo del periodo y por qué?"
-    if quick_col_2.button("¿Qué decisión tomarías hoy?", use_container_width=True):
-        st.session_state.ceo_quick_q = "Con este estado del mercado, ¿qué decisión ejecutiva tomarías hoy?"
-    if quick_col_3.button("Proyección 7 días", use_container_width=True):
-        st.session_state.ceo_quick_q = "Dame una lectura ejecutiva para los próximos 7 días, con riesgos y recomendaciones."
-
-    action_col_1, action_col_2 = st.columns(2)
-    if action_col_1.button("Nuevo chat", use_container_width=True):
-        st.session_state.ceo_chat_messages = [
-            {
-                "role": "assistant",
-                "content": (
-                    f"Nuevo chat iniciado para el periodo {start_str} - {end_str}. "
-                    "¿Qué deseas analizar del MEM?"
-                ),
-            }
-        ]
-        st.session_state.ceo_quick_q = ""
-        st.rerun()
-    if action_col_2.button("Limpiar historial", use_container_width=True):
-        st.session_state.ceo_chat_messages = []
-        st.session_state.ceo_quick_q = ""
-        st.rerun()
 
     st.markdown("""
     <div class="ceo-chat-shell">
@@ -951,14 +877,11 @@ elif selection == "Informe del CEO":
                 )
             with send_col:
                 send_clicked = st.form_submit_button("➤", use_container_width=True)
-        st.markdown('<p class="ceo-prompt-note">Tip: pregunta por riesgos, precio, escasez, embalses o decisiones ejecutivas.</p>', unsafe_allow_html=True)
+        st.markdown('<p class="ceo-prompt-note">Consulta solo temas del mercado de energía (MEM).</p>', unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     if not send_clicked:
         question = question if question else None
-    if not question and "ceo_quick_q" in st.session_state and st.session_state.ceo_quick_q:
-        question = st.session_state.ceo_quick_q
-        st.session_state.ceo_quick_q = ""
 
     if question:
         last_user = None
@@ -971,7 +894,6 @@ elif selection == "Informe del CEO":
 
     if question:
         st.session_state.ceo_chat_messages.append({"role": "user", "content": question})
-
         if not st.session_state.ceo_api_key:
             answer = "Primero configura tu API Key de Gemini para activar el consultor."
         else:
